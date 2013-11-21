@@ -42,8 +42,8 @@
 #include "InputReader.h"
 
 #include <cutils/log.h>
-#include <androidfw/Keyboard.h>
-#include <androidfw/VirtualKeyMap.h>
+#include <input/Keyboard.h>
+#include <input/VirtualKeyMap.h>
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -354,8 +354,9 @@ void InputReader::addDeviceLocked(nsecs_t when, int32_t deviceId) {
 
     InputDeviceIdentifier identifier = mEventHub->getDeviceIdentifier(deviceId);
     uint32_t classes = mEventHub->getDeviceClasses(deviceId);
+    int32_t controllerNumber = mEventHub->getDeviceControllerNumber(deviceId);
 
-    InputDevice* device = createDeviceLocked(deviceId, identifier, classes);
+    InputDevice* device = createDeviceLocked(deviceId, controllerNumber, identifier, classes);
     device->configure(when, &mConfig, 0);
     device->reset(when);
 
@@ -395,10 +396,10 @@ void InputReader::removeDeviceLocked(nsecs_t when, int32_t deviceId) {
     delete device;
 }
 
-InputDevice* InputReader::createDeviceLocked(int32_t deviceId,
+InputDevice* InputReader::createDeviceLocked(int32_t deviceId, int32_t controllerNumber,
         const InputDeviceIdentifier& identifier, uint32_t classes) {
     InputDevice* device = new InputDevice(&mContext, deviceId, bumpGenerationLocked(),
-            identifier, classes);
+            controllerNumber, identifier, classes);
 
     // External devices.
     if (classes & INPUT_DEVICE_CLASS_EXTERNAL) {
@@ -843,8 +844,8 @@ bool InputReaderThread::threadLoop() {
 // --- InputDevice ---
 
 InputDevice::InputDevice(InputReaderContext* context, int32_t id, int32_t generation,
-        const InputDeviceIdentifier& identifier, uint32_t classes) :
-        mContext(context), mId(id), mGeneration(generation),
+        int32_t controllerNumber, const InputDeviceIdentifier& identifier, uint32_t classes) :
+        mContext(context), mId(id), mGeneration(generation), mControllerNumber(controllerNumber),
         mIdentifier(identifier), mClasses(classes),
         mSources(0), mIsExternal(false), mDropUntilNextSync(false) {
 }
@@ -995,7 +996,8 @@ void InputDevice::timeoutExpired(nsecs_t when) {
 }
 
 void InputDevice::getDeviceInfo(InputDeviceInfo* outDeviceInfo) {
-    outDeviceInfo->initialize(mId, mGeneration, mIdentifier, mAlias, mIsExternal);
+    outDeviceInfo->initialize(mId, mGeneration, mControllerNumber, mIdentifier, mAlias,
+            mIsExternal);
 
     size_t numMappers = mMappers.size();
     for (size_t i = 0; i < numMappers; i++) {
@@ -2133,11 +2135,12 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t keyCode,
         }
     }
 
+    bool metaStateChanged = false;
     int32_t oldMetaState = mMetaState;
     int32_t newMetaState = updateMetaState(keyCode, down, oldMetaState);
-    bool metaStateChanged = oldMetaState != newMetaState;
-    if (metaStateChanged) {
+    if (oldMetaState != newMetaState) {
         mMetaState = newMetaState;
+        metaStateChanged = true;
         updateLedState(false);
     }
 
@@ -2630,6 +2633,7 @@ void TouchInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
             info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_4, mSource, y.min, y.max, y.flat,
                     y.fuzz, y.resolution);
         }
+        info->setButtonUnderPad(mParameters.hasButtonUnderPad);
     }
 }
 
@@ -2795,6 +2799,9 @@ void TouchInputMapper::configureParameters() {
         mParameters.deviceType = Parameters::DEVICE_TYPE_POINTER;
     }
 
+    mParameters.hasButtonUnderPad=
+            getEventHub()->hasInputProperty(getDeviceId(), INPUT_PROP_BUTTONPAD);
+
     String8 deviceTypeString;
     if (getDevice()->getConfiguration().tryGetProperty(String8("touch.deviceType"),
             deviceTypeString)) {
@@ -2925,6 +2932,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
     int32_t rawHeight = mRawPointerAxes.y.maxValue - mRawPointerAxes.y.minValue + 1;
 
     // Get associated display dimensions.
+    bool viewportChanged = false;
     DisplayViewport newViewport;
     if (mParameters.hasAssociatedDisplay) {
         if (!mConfig.getDisplayInfo(mParameters.associatedDisplayIsExternal, &newViewport)) {
@@ -2938,9 +2946,9 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
     } else {
         newViewport.setNonDisplayViewport(rawWidth, rawHeight);
     }
-    bool viewportChanged = mViewport != newViewport;
-    if (viewportChanged) {
+    if (mViewport != newViewport) {
         mViewport = newViewport;
+        viewportChanged = true;
 
         if (mDeviceMode == DEVICE_MODE_DIRECT || mDeviceMode == DEVICE_MODE_POINTER) {
             // Convert rotated viewport to natural surface coordinates.
@@ -3009,8 +3017,9 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
     }
 
     // If moving between pointer modes, need to reset some state.
-    bool deviceModeChanged = mDeviceMode != oldDeviceMode;
-    if (deviceModeChanged) {
+    bool deviceModeChanged;
+    if (mDeviceMode != oldDeviceMode) {
+        deviceModeChanged = true;
         mOrientedRanges.clear();
     }
 
@@ -4647,6 +4656,14 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when,
                 mCurrentFingerIdBits, positions);
     }
 
+    // If the gesture ever enters a mode other than TAP, HOVER or TAP_DRAG, without first returning
+    // to NEUTRAL, then we should not generate tap event.
+    if (mPointerGesture.lastGestureMode != PointerGesture::HOVER
+            && mPointerGesture.lastGestureMode != PointerGesture::TAP
+            && mPointerGesture.lastGestureMode != PointerGesture::TAP_DRAG) {
+        mPointerGesture.resetTap();
+    }
+
     // Pick a new active touch id if needed.
     // Choose an arbitrary pointer that just went down, if there is one.
     // Otherwise choose an arbitrary remaining pointer.
@@ -4855,8 +4872,12 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when,
                 }
             } else {
 #if DEBUG_GESTURES
-                ALOGD("Gestures: Not a TAP, %0.3fms since down",
-                        (when - mPointerGesture.tapDownTime) * 0.000001f);
+                if (mPointerGesture.tapDownTime != LLONG_MIN) {
+                    ALOGD("Gestures: Not a TAP, %0.3fms since down",
+                            (when - mPointerGesture.tapDownTime) * 0.000001f);
+                } else {
+                    ALOGD("Gestures: Not a TAP, incompatible mode transitions");
+                }
 #endif
             }
         }

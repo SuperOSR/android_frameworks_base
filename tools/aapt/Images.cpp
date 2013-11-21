@@ -12,15 +12,13 @@
 #include <utils/ByteOrder.h>
 
 #include <png.h>
-#include <zlib.h>
 
 #define NOISY(x) //x
 
 static void
 png_write_aapt_file(png_structp png_ptr, png_bytep data, png_size_t length)
 {
-    AaptFile* aaptfile = (AaptFile*) png_get_io_ptr(png_ptr);
-    status_t err = aaptfile->writeData(data, length);
+    status_t err = ((AaptFile*)png_ptr->io_ptr)->writeData(data, length);
     if (err != NO_ERROR) {
         png_error(png_ptr, "Write Error");
     }
@@ -92,7 +90,7 @@ static void read_png(const char* imageName,
         png_set_palette_to_rgb(read_ptr);
 
     if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8)
-        png_set_expand_gray_1_2_4_to_8(read_ptr);
+        png_set_gray_1_2_4_to_8(read_ptr);
 
     if (png_get_valid(read_ptr, read_info, PNG_INFO_tRNS)) {
         //printf("Has PNG_INFO_tRNS!\n");
@@ -111,7 +109,7 @@ static void read_png(const char* imageName,
     png_read_update_info(read_ptr, read_info);
 
     outImageInfo->rows = (png_bytepp)malloc(
-        outImageInfo->height * sizeof(png_bytep));
+        outImageInfo->height * png_sizeof(png_bytep));
     outImageInfo->allocHeight = outImageInfo->height;
     outImageInfo->allocRows = outImageInfo->rows;
 
@@ -452,11 +450,10 @@ static status_t do_9patch(const char* imageName, image_info* image)
 
     int maxSizeXDivs = W * sizeof(int32_t);
     int maxSizeYDivs = H * sizeof(int32_t);
-    int32_t* xDivs = image->info9Patch.xDivs = (int32_t*) malloc(maxSizeXDivs);
-    int32_t* yDivs = image->info9Patch.yDivs = (int32_t*) malloc(maxSizeYDivs);
-    uint8_t numXDivs = 0;
-    uint8_t numYDivs = 0;
-
+    int32_t* xDivs = (int32_t*) malloc(maxSizeXDivs);
+    int32_t* yDivs = (int32_t*) malloc(maxSizeYDivs);
+    uint8_t  numXDivs = 0;
+    uint8_t  numYDivs = 0;
     int8_t numColors;
     int numRows;
     int numCols;
@@ -511,10 +508,6 @@ static status_t do_9patch(const char* imageName, image_info* image)
         goto getout;
     }
 
-    // Copy patch size data into image...
-    image->info9Patch.numXDivs = numXDivs;
-    image->info9Patch.numYDivs = numYDivs;
-
     // Find left and right of padding area...
     if (get_horizontal_ticks(image->rows[H-1], W, transparent, false, &image->info9Patch.paddingLeft,
                              &image->info9Patch.paddingRight, &errorMsg, NULL, false) != NO_ERROR) {
@@ -550,6 +543,12 @@ static status_t do_9patch(const char* imageName, image_info* image)
                 image->layoutBoundsRight, image->layoutBoundsBottom));
     }
 
+    // Copy patch data into image
+    image->info9Patch.numXDivs = numXDivs;
+    image->info9Patch.numYDivs = numYDivs;
+    image->info9Patch.xDivs = xDivs;
+    image->info9Patch.yDivs = yDivs;
+
     // If padding is not yet specified, take values from size.
     if (image->info9Patch.paddingLeft < 0) {
         image->info9Patch.paddingLeft = xDivs[0];
@@ -574,7 +573,7 @@ static status_t do_9patch(const char* imageName, image_info* image)
                  image->info9Patch.paddingTop, image->info9Patch.paddingBottom));
 
     // Remove frame from image.
-    image->rows = (png_bytepp)malloc((H-2) * sizeof(png_bytep));
+    image->rows = (png_bytepp)malloc((H-2) * png_sizeof(png_bytep));
     for (i=0; i<(H-2); i++) {
         image->rows[i] = image->allocRows[i+1];
         memmove(image->rows[i], image->rows[i]+4, (W-2)*4);
@@ -956,7 +955,7 @@ static void analyze_image(const char *imageName, image_info &imageInfo, int gray
                 gg = *row++;
                 bb = *row++;
                 aa = *row++;
-
+                
                 if (isGrayscale) {
                     *out++ = rr;
                 } else {
@@ -985,7 +984,7 @@ static void write_png(const char* imageName,
     unknowns[0].data = NULL;
     unknowns[1].data = NULL;
 
-    png_bytepp outRows = (png_bytepp) malloc((int) imageInfo.height * sizeof(png_bytep));
+    png_bytepp outRows = (png_bytepp) malloc((int) imageInfo.height * png_sizeof(png_bytep));
     if (outRows == (png_bytepp) 0) {
         printf("Can't allocate output buffer!\n");
         exit(1);
@@ -1074,19 +1073,18 @@ static void write_png(const char* imageName,
             unknowns[b_index].size = chunk_size;
         }
 
-        for (int i = 0; i < chunk_count; i++) {
-            unknowns[i].location = PNG_HAVE_PLTE;
-        }
         png_set_keep_unknown_chunks(write_ptr, PNG_HANDLE_CHUNK_ALWAYS,
                                     chunk_names, chunk_count);
         png_set_unknown_chunks(write_ptr, write_info, unknowns, chunk_count);
-#if PNG_LIBPNG_VER < 10600
-        /* Deal with unknown chunk location bug in 1.5.x and earlier */
+        // XXX I can't get this to work without forcibly changing
+        // the location to what I want...  which apparently is supposed
+        // to be a private API, but everything else I have tried results
+        // in the location being set to what I -last- wrote so I never
+        // get written. :p
         png_set_unknown_chunk_location(write_ptr, write_info, 0, PNG_HAVE_PLTE);
         if (imageInfo.haveLayoutBounds) {
             png_set_unknown_chunk_location(write_ptr, write_info, 1, PNG_HAVE_PLTE);
         }
-#endif
     }
 
 
@@ -1094,9 +1092,7 @@ static void write_png(const char* imageName,
 
     png_bytepp rows;
     if (color_type == PNG_COLOR_TYPE_RGB || color_type == PNG_COLOR_TYPE_RGB_ALPHA) {
-        if (color_type == PNG_COLOR_TYPE_RGB) {
-            png_set_filler(write_ptr, 0, PNG_FILLER_AFTER);
-        }
+        png_set_filler(write_ptr, 0, PNG_FILLER_AFTER);
         rows = imageInfo.rows;
     } else {
         rows = outRows;

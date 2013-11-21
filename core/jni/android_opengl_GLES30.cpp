@@ -294,6 +294,7 @@ getarray
     int _needed = 0;
 
     params = (CTYPE *)getPointer(_env, params_buf, &_array, &_remaining, &_bufferOffset);
+    _remaining /= sizeof(CTYPE);    // convert from bytes to item count
     _needed = getNeededCount(pname);
     // if we didn't find this pname, we just assume the user passed
     // an array of the right size -- this might happen with extensions
@@ -2510,7 +2511,6 @@ android_glGetFragDataLocation__ILjava_lang_String_2
     const char* _nativename = 0;
 
     if (!name) {
-        _exception = 1;
         _exceptionType = "java/lang/IllegalArgumentException";
         _exceptionMessage = "name == null";
         goto exit;
@@ -3361,7 +3361,6 @@ android_glGetUniformBlockIndex__ILjava_lang_String_2
     const char* _nativeuniformBlockName = 0;
 
     if (!uniformBlockName) {
-        _exception = 1;
         _exceptionType = "java/lang/IllegalArgumentException";
         _exceptionMessage = "uniformBlockName == null";
         goto exit;

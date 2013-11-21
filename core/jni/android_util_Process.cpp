@@ -33,6 +33,7 @@
 #include <sys/errno.h>
 #include <sys/resource.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <grp.h>
@@ -360,6 +361,32 @@ jboolean android_os_Process_setOomAdj(JNIEnv* env, jobject clazz,
     return false;
 }
 
+jboolean android_os_Process_setSwappiness(JNIEnv *env, jobject clazz,
+                                          jint pid, jboolean is_increased)
+{
+    char text[64];
+
+    if (is_increased) {
+        strcpy(text, "/sys/fs/cgroup/memory/sw/tasks");
+    } else {
+        strcpy(text, "/sys/fs/cgroup/memory/tasks");
+    }
+
+    struct stat st;
+    if (stat(text, &st) || !S_ISREG(st.st_mode)) {
+        return false;
+    }
+
+    int fd = open(text, O_WRONLY);
+    if (fd >= 0) {
+        sprintf(text, "%d", pid);
+        write(fd, text, strlen(text));
+        close(fd);
+    }
+
+    return true;
+}
+
 void android_os_Process_setArgV0(JNIEnv* env, jobject clazz, jstring name)
 {
     if (name == NULL) {
@@ -395,7 +422,7 @@ static int pid_compare(const void* v1, const void* v2)
     return *((const jint*)v1) - *((const jint*)v2);
 }
 
-static jlong getFreeMemoryImpl(const char* const sums[], const size_t sumsLen[], size_t num)
+static jlong getFreeMemoryImpl(const char* const sums[], const int sumsLen[], int num)
 {
     int fd = open("/proc/meminfo", O_RDONLY);
 
@@ -414,7 +441,7 @@ static jlong getFreeMemoryImpl(const char* const sums[], const size_t sumsLen[],
     }
     buffer[len] = 0;
 
-    size_t numFound = 0;
+    int numFound = 0;
     jlong mem = 0;
 
     char* p = buffer;
@@ -446,14 +473,14 @@ static jlong getFreeMemoryImpl(const char* const sums[], const size_t sumsLen[],
 static jlong android_os_Process_getFreeMemory(JNIEnv* env, jobject clazz)
 {
     static const char* const sums[] = { "MemFree:", "Cached:", NULL };
-    static const size_t sumsLen[] = { strlen("MemFree:"), strlen("Cached:"), 0 };
+    static const int sumsLen[] = { strlen("MemFree:"), strlen("Cached:"), 0 };
     return getFreeMemoryImpl(sums, sumsLen, 2);
 }
 
 static jlong android_os_Process_getTotalMemory(JNIEnv* env, jobject clazz)
 {
     static const char* const sums[] = { "MemTotal:", NULL };
-    static const size_t sumsLen[] = { strlen("MemTotal:"), 0 };
+    static const int sumsLen[] = { strlen("MemTotal:"), 0 };
     return getFreeMemoryImpl(sums, sumsLen, 1);
 }
 
@@ -657,6 +684,7 @@ enum {
     PROC_SPACE_TERM = ' ',
     PROC_COMBINE = 0x100,
     PROC_PARENS = 0x200,
+    PROC_QUOTES = 0x400,
     PROC_OUT_STRING = 0x1000,
     PROC_OUT_LONG = 0x2000,
     PROC_OUT_FLOAT = 0x4000,
@@ -698,9 +726,15 @@ jboolean android_os_Process_parseProcLineArray(JNIEnv* env, jobject clazz,
     jboolean res = JNI_TRUE;
 
     for (jsize fi=0; fi<NF; fi++) {
-        const jint mode = formatData[fi];
+        jint mode = formatData[fi];
         if ((mode&PROC_PARENS) != 0) {
             i++;
+        } else if ((mode&PROC_QUOTES != 0)) {
+            if (buffer[i] == '"') {
+                i++;
+            } else {
+                mode &= ~PROC_QUOTES;
+            }
         }
         const char term = (char)(mode&PROC_TERM_MASK);
         const jsize start = i;
@@ -711,13 +745,19 @@ jboolean android_os_Process_parseProcLineArray(JNIEnv* env, jobject clazz,
 
         jsize end = -1;
         if ((mode&PROC_PARENS) != 0) {
-            while (i < endIndex && buffer[i] != ')') {
+            while (buffer[i] != ')' && i < endIndex) {
+                i++;
+            }
+            end = i;
+            i++;
+        } else if ((mode&PROC_QUOTES) != 0) {
+            while (buffer[i] != '"' && i < endIndex) {
                 i++;
             }
             end = i;
             i++;
         }
-        while (i < endIndex && buffer[i] != term) {
+        while (buffer[i] != term && i < endIndex) {
             i++;
         }
         if (end < 0) {
@@ -727,7 +767,7 @@ jboolean android_os_Process_parseProcLineArray(JNIEnv* env, jobject clazz,
         if (i < endIndex) {
             i++;
             if ((mode&PROC_COMBINE) != 0) {
-                while (i < endIndex && buffer[i] == term) {
+                while (buffer[i] == term && i < endIndex) {
                     i++;
                 }
             }
@@ -984,6 +1024,7 @@ static const JNINativeMethod methods[] = {
     {"setProcessGroup",     "(II)V", (void*)android_os_Process_setProcessGroup},
     {"getProcessGroup",     "(I)I", (void*)android_os_Process_getProcessGroup},
     {"setOomAdj",   "(II)Z", (void*)android_os_Process_setOomAdj},
+    {"setSwappiness",   "(IZ)Z", (void*)android_os_Process_setSwappiness},
     {"setArgV0",    "(Ljava/lang/String;)V", (void*)android_os_Process_setArgV0},
     {"setUid", "(I)I", (void*)android_os_Process_setUid},
     {"setGid", "(I)I", (void*)android_os_Process_setGid},

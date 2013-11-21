@@ -32,8 +32,10 @@ import java.security.GeneralSecurityException;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.Collection;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -46,7 +48,7 @@ import org.apache.harmony.security.asn1.BerInputStream;
 import org.apache.harmony.security.pkcs7.ContentInfo;
 import org.apache.harmony.security.pkcs7.SignedData;
 import org.apache.harmony.security.pkcs7.SignerInfo;
-import org.apache.harmony.security.x509.Certificate;
+import org.apache.harmony.security.provider.cert.X509CertImpl;
 
 /**
  * RecoverySystem contains methods for interacting with the Android
@@ -91,9 +93,9 @@ public class RecoverySystem {
     }
 
     /** @return the set of certs that can be used to sign an OTA package. */
-    private static HashSet<X509Certificate> getTrustedCerts(File keystore)
+    private static HashSet<Certificate> getTrustedCerts(File keystore)
         throws IOException, GeneralSecurityException {
-        HashSet<X509Certificate> trusted = new HashSet<X509Certificate>();
+        HashSet<Certificate> trusted = new HashSet<Certificate>();
         if (keystore == null) {
             keystore = DEFAULT_KEYSTORE;
         }
@@ -105,7 +107,7 @@ public class RecoverySystem {
                 ZipEntry entry = entries.nextElement();
                 InputStream is = zip.getInputStream(entry);
                 try {
-                    trusted.add((X509Certificate) cf.generateCertificate(is));
+                    trusted.add(cf.generateCertificate(is));
                 } finally {
                     is.close();
                 }
@@ -199,23 +201,21 @@ public class RecoverySystem {
             if (signedData == null) {
                 throw new IOException("signedData is null");
             }
-            List<Certificate> encCerts = signedData.getCertificates();
+            Collection encCerts = signedData.getCertificates();
             if (encCerts.isEmpty()) {
                 throw new IOException("encCerts is empty");
             }
             // Take the first certificate from the signature (packages
             // should contain only one).
-            Iterator<Certificate> it = encCerts.iterator();
+            Iterator it = encCerts.iterator();
             X509Certificate cert = null;
             if (it.hasNext()) {
-                CertificateFactory cf = CertificateFactory.getInstance("X.509");
-                InputStream is = new ByteArrayInputStream(it.next().getEncoded());
-                cert = (X509Certificate) cf.generateCertificate(is);
+                cert = new X509CertImpl((org.apache.harmony.security.x509.Certificate)it.next());
             } else {
                 throw new SignatureException("signature contains no certificates");
             }
 
-            List<SignerInfo> sigInfos = signedData.getSignerInfos();
+            List sigInfos = signedData.getSignerInfos();
             SignerInfo sigInfo;
             if (!sigInfos.isEmpty()) {
                 sigInfo = (SignerInfo)sigInfos.get(0);
@@ -226,12 +226,12 @@ public class RecoverySystem {
             // Check that the public key of the certificate contained
             // in the package equals one of our trusted public keys.
 
-            HashSet<X509Certificate> trusted = getTrustedCerts(
+            HashSet<Certificate> trusted = getTrustedCerts(
                 deviceCertsZipFile == null ? DEFAULT_KEYSTORE : deviceCertsZipFile);
 
             PublicKey signatureKey = cert.getPublicKey();
             boolean verified = false;
-            for (X509Certificate c : trusted) {
+            for (Certificate c : trusted) {
                 if (c.getPublicKey().equals(signatureKey)) {
                     verified = true;
                     break;
@@ -244,12 +244,17 @@ public class RecoverySystem {
             // The signature cert matches a trusted key.  Now verify that
             // the digest in the cert matches the actual file data.
 
-            // The verifier in recovery *only* handles SHA1withRSA
-            // signatures.  SignApk.java always uses SHA1withRSA, no
-            // matter what the cert says to use.  Ignore
-            // cert.getSigAlgName(), and instead use whatever
-            // algorithm is used by the signature (which should be
-            // SHA1withRSA).
+            // The verifier in recovery only handles SHA1withRSA and
+            // SHA256withRSA signatures.  SignApk chooses which to use
+            // based on the signature algorithm of the cert:
+            //
+            //    "SHA256withRSA" cert -> "SHA256withRSA" signature
+            //    "SHA1withRSA" cert   -> "SHA1withRSA" signature
+            //    "MD5withRSA" cert    -> "SHA1withRSA" signature (for backwards compatibility)
+            //    any other cert       -> SignApk fails
+            //
+            // Here we ignore whatever the cert says, and instead use
+            // whatever algorithm is used by the signature.
 
             String da = sigInfo.getDigestAlgorithm();
             String dea = sigInfo.getDigestEncryptionAlgorithm();

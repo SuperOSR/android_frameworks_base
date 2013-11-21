@@ -35,7 +35,6 @@
 
 #include <cutils/sockets.h>
 #include <netinet/tcp.h>
-#include <ScopedUtfChars.h>
 
 namespace android {
 
@@ -45,26 +44,6 @@ static jclass class_Credentials;
 static jclass class_FileDescriptor;
 static jmethodID method_CredentialsInit;
 
-/*
- * private native FileDescriptor
- * create_native(boolean stream)
- *               throws IOException;
- */
-static jobject
-socket_create (JNIEnv *env, jobject object, jboolean stream)
-{
-    int ret;
-
-    ret = socket(PF_LOCAL, stream ? SOCK_STREAM : SOCK_DGRAM, 0);
-
-    if (ret < 0) {
-        jniThrowIOException(env, errno);
-        return NULL;
-    }
-
-    return jniCreateFileDescriptor(env,ret);
-}
-
 /* private native void connectLocal(FileDescriptor fd,
  * String name, int namespace) throws IOException
  */
@@ -73,7 +52,10 @@ socket_connect_local(JNIEnv *env, jobject object,
                         jobject fileDescriptor, jstring name, jint namespaceId)
 {
     int ret;
+    const char *nameUtf8;
     int fd;
+
+    nameUtf8 = env->GetStringUTFChars(name, NULL);
 
     fd = jniGetFDFromFileDescriptor(env, fileDescriptor);
 
@@ -81,13 +63,13 @@ socket_connect_local(JNIEnv *env, jobject object,
         return;
     }
 
-    ScopedUtfChars nameUtf8(env, name);
-
     ret = socket_local_client_connect(
                 fd,
-                nameUtf8.c_str(),
+                nameUtf8,
                 namespaceId,
                 SOCK_STREAM);
+
+    env->ReleaseStringUTFChars(name, nameUtf8);
 
     if (ret < 0) {
         jniThrowIOException(env, errno);
@@ -107,10 +89,11 @@ socket_bind_local (JNIEnv *env, jobject object, jobject fileDescriptor,
 {
     int ret;
     int fd;
+    const char *nameUtf8;
+
 
     if (name == NULL) {
         jniThrowNullPointerException(env, NULL);
-        return;
     }
 
     fd = jniGetFDFromFileDescriptor(env, fileDescriptor);
@@ -119,9 +102,11 @@ socket_bind_local (JNIEnv *env, jobject object, jobject fileDescriptor,
         return;
     }
 
-    ScopedUtfChars nameUtf8(env, name);
+    nameUtf8 = env->GetStringUTFChars(name, NULL);
 
-    ret = socket_local_server_bind(fd, nameUtf8.c_str(), namespaceId);
+    ret = socket_local_server_bind(fd, nameUtf8, namespaceId);
+
+    env->ReleaseStringUTFChars(name, nameUtf8);
 
     if (ret < 0) {
         jniThrowIOException(env, errno);
@@ -440,32 +425,6 @@ static jint socket_available (JNIEnv *env, jobject object,
 #endif
 }
 
-static void socket_close (JNIEnv *env, jobject object, jobject fileDescriptor)
-{
-    int fd;
-    int err;
-
-    if (fileDescriptor == NULL) {
-        jniThrowNullPointerException(env, NULL);
-        return;
-    }
-
-    fd = jniGetFDFromFileDescriptor(env, fileDescriptor);
-
-    if (env->ExceptionOccurred() != NULL) {
-        return;
-    }
-
-    do {
-        err = close(fd);
-    } while (err < 0 && errno == EINTR);
-
-    if (err < 0) {
-        jniThrowIOException(env, errno);
-        return;
-    }
-}
-
 /**
  * Processes ancillary data, handling only
  * SCM_RIGHTS. Creates appropriate objects and sets appropriate
@@ -492,7 +451,6 @@ static int socket_process_cmsg(JNIEnv *env, jobject thisJ, struct msghdr * pMsg)
             if (count < 0) {
                 jniThrowException(env, "java/io/IOException",
                     "invalid cmsg length");
-                return -1;
             }
 
             fdArray = env->NewObjectArray(count, class_FileDescriptor, NULL);
@@ -905,7 +863,6 @@ static JNINativeMethod gMethods[] = {
      /* name, signature, funcPtr */
     {"getOption_native", "(Ljava/io/FileDescriptor;I)I", (void*)socket_getOption},
     {"setOption_native", "(Ljava/io/FileDescriptor;III)V", (void*)socket_setOption},
-    {"create_native", "(Z)Ljava/io/FileDescriptor;", (void*)socket_create},
     {"connectLocal", "(Ljava/io/FileDescriptor;Ljava/lang/String;I)V",
                                                 (void*)socket_connect_local},
     {"bindLocal", "(Ljava/io/FileDescriptor;Ljava/lang/String;I)V", (void*)socket_bind_local},
@@ -914,7 +871,6 @@ static JNINativeMethod gMethods[] = {
     {"shutdown", "(Ljava/io/FileDescriptor;Z)V", (void*)socket_shutdown},
     {"available_native", "(Ljava/io/FileDescriptor;)I", (void*) socket_available},
     {"pending_native", "(Ljava/io/FileDescriptor;)I", (void*) socket_pending},
-    {"close_native", "(Ljava/io/FileDescriptor;)V", (void*) socket_close},
     {"read_native", "(Ljava/io/FileDescriptor;)I", (void*) socket_read},
     {"readba_native", "([BIILjava/io/FileDescriptor;)I", (void*) socket_readba},
     {"writeba_native", "([BIILjava/io/FileDescriptor;)V", (void*) socket_writeba},
