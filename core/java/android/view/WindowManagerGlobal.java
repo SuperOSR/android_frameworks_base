@@ -199,60 +199,26 @@ public final class WindowManagerGlobal {
         }
 
         final WindowManager.LayoutParams wparams = (WindowManager.LayoutParams)params;
-        if (parentWindow != null) {
-            parentWindow.adjustLayoutParamsForSubWindow(wparams);
-        }
+    if(((wparams.flags & WindowManager.LayoutParams.FLAG_BRING_TO_FRONT) == WindowManager.LayoutParams.FLAG_BRING_TO_FRONT))
+	{
+		 wparams.flags &= (~WindowManager.LayoutParams.FLAG_BRING_TO_FRONT);
 
-        ViewRootImpl root;
-        View panelParentView = null;
+		 Log.v("WindowManager", "bringViewToFront view=" + view);
+		
+		bringViewToFront(view);			 
+	}
+        else
+        {
+		    view.setLayoutParams(wparams);
 
-        synchronized (mLock) {
-            // Start watching for system property changes.
-            if (mSystemPropertyUpdater == null) {
-                mSystemPropertyUpdater = new Runnable() {
-                    @Override public void run() {
-                        synchronized (mLock) {
-                            for (int i = mRoots.size() - 1; i >= 0; --i) {
-                                mRoots.get(i).loadSystemProperties();
-                            }
-                        }
-                    }
-                };
-                SystemProperties.addChangeCallback(mSystemPropertyUpdater);
-            }
-
-            int index = findViewLocked(view, false);
-            if (index >= 0) {
-                if (mDyingViews.contains(view)) {
-                    // Don't wait for MSG_DIE to make it's way through root's queue.
-                    mRoots.get(index).doDie();
-                } else {
-                    throw new IllegalStateException("View " + view
-                            + " has already been added to the window manager.");
-                }
-                // The previous removeView() had not completed executing. Now it has.
-            }
-
-            // If this is a panel window, then find the window it is being
-            // attached to for future reference.
-            if (wparams.type >= WindowManager.LayoutParams.FIRST_SUB_WINDOW &&
-                    wparams.type <= WindowManager.LayoutParams.LAST_SUB_WINDOW) {
-                final int count = mViews.size();
-                for (int i = 0; i < count; i++) {
-                    if (mRoots.get(i).mWindow.asBinder() == wparams.token) {
-                        panelParentView = mViews.get(i);
-                    }
-                }
-            }
-
-            root = new ViewRootImpl(view.getContext(), display);
-
-            view.setLayoutParams(wparams);
-
-            mViews.add(view);
-            mRoots.add(root);
-            mParams.add(wparams);
-        }
+		    synchronized (mLock) {
+		        int index = findViewLocked(view, true);
+		        ViewRootImpl root = mRoots[index];
+		        mParams[index] = wparams;
+		        root.setLayoutParams(wparams, false);
+		    }
+	}
+       
 
         // do this last because it fires off messages to start doing things
         try {

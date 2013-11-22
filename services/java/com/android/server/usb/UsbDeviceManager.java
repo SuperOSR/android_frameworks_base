@@ -44,6 +44,8 @@ import android.os.storage.StorageVolume;
 import android.provider.Settings;
 import android.util.Pair;
 import android.util.Slog;
+import android.os.PowerManager;
+import android.os.DynamicPManager;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.server.FgThread;
@@ -89,6 +91,7 @@ public class UsbDeviceManager {
     private static final int MSG_SYSTEM_READY = 3;
     private static final int MSG_BOOT_COMPLETED = 4;
     private static final int MSG_USER_SWITCHED = 5;
+	private static final int MSG_BOOTFAST_SWITCHED = 6;
 
     private static final int AUDIO_MODE_NONE = 0;
     private static final int AUDIO_MODE_SOURCE = 1;
@@ -97,6 +100,7 @@ public class UsbDeviceManager {
     // We often get rapid connect/disconnect events when enabling USB functions,
     // which need debouncing.
     private static final int UPDATE_DELAY = 1000;
+    private static final int USB_CONNECT_MIN_FREQ = 1008000;
 
     private static final String BOOT_MODE_PROPERTY = "ro.bootmode";
 
@@ -117,6 +121,11 @@ public class UsbDeviceManager {
     private Map<String, List<Pair<String, String>>> mOemModeMap;
     private String[] mAccessoryStrings;
     private UsbDebuggingManager mDebuggingManager;
+    private PowerManager.WakeLock wl;   
+    private DynamicPManager mDPM;
+    private int mLastMinFreq;
+    private int wlref = 0;
+    private int dlref = 0;
 
     private class AdbSettingsObserver extends ContentObserver {
         public AdbSettingsObserver() {
@@ -156,6 +165,9 @@ public class UsbDeviceManager {
         mHasUsbAccessory = pm.hasSystemFeature(PackageManager.FEATURE_USB_ACCESSORY);
         initRndisAddress();
 
+		PowerManager power = (PowerManager) mContext.getSystemService(Context.POWER_SERVICE);        
+        wl = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
+        
         readOemUsbOverrideConfig();
 
         mHandler = new UsbHandler(FgThread.get().getLooper());
@@ -183,7 +195,45 @@ public class UsbDeviceManager {
             return mCurrentSettings;
         }
     }
-
+    
+    private void enableWakeLock(boolean enable){
+        if(enable){
+            Slog.d(TAG, "enable "+ TAG +" wakelock"+" wlref = "+ wlref);            
+            if(wlref==0){
+                wlref++;
+                wl.acquire();
+            }            
+        }else{
+            Slog.d(TAG, "disable "+ TAG +" wakelock"+" wlref = "+ wlref);              
+            if(wlref==1){
+                wl.release();
+                wlref--;
+            }
+        }
+    }
+	
+    private void enableDPMLock(boolean enable){
+		if(enable){
+			if(dlref==0){
+				dlref++;
+				if(mDPM == null){
+					Slog.v(TAG,"enableDPMLock +++");
+					mDPM = new DynamicPManager();
+				}
+				mLastMinFreq = mDPM.getCpuScalingMinFreq();
+				mDPM.setCpuScalingMinFreq(USB_CONNECT_MIN_FREQ);
+			}
+		}else{
+			if(dlref==1){
+				if(mDPM != null){
+					Slog.v(TAG,"enableDPMLock ---");
+					mDPM.setCpuScalingMinFreq(mLastMinFreq);
+					mDPM = null;
+				}
+				dlref--;
+			}
+		}
+	}
     public void systemReady() {
         if (DEBUG) Slog.d(TAG, "systemReady");
 
@@ -193,10 +243,13 @@ public class UsbDeviceManager {
         // We do not show the USB notification if the primary volume supports mass storage.
         // The legacy mass storage UI will be used instead.
         boolean massStorageSupported = false;
-        final StorageManager storageManager = StorageManager.from(mContext);
-        final StorageVolume primary = storageManager.getPrimaryVolume();
-        massStorageSupported = primary != null && primary.allowMassStorage();
-        mUseUsbNotification = !massStorageSupported;
+        StorageManager storageManager = (StorageManager)
+                mContext.getSystemService(Context.STORAGE_SERVICE);
+        StorageVolume[] volumes = storageManager.getVolumeList();
+        if (volumes.length > 0) {
+            massStorageSupported = volumes[0].allowMassStorage();
+        }
+        mUseUsbNotification = massStorageSupported;
 
         // make sure the ADB_ENABLED setting value matches the current state
         Settings.Global.putInt(mContentResolver, Settings.Global.ADB_ENABLED, mAdbEnabled ? 1 : 0);
@@ -323,6 +376,15 @@ public class UsbDeviceManager {
             }
         };
 
+		private final BroadcastReceiver mBootFastReceiver = new BroadcastReceiver() {
+			@Override
+			public void onReceive(Context context, Intent intent){
+				Slog.d(TAG,"mBootFastReceiver reveived ACTION_BOOT_FAST");
+				final int boot = intent.getIntExtra(Intent.EXTRA_BOOT_FAST,0);
+				mHandler.obtainMessage(MSG_BOOTFAST_SWITCHED, boot, 0).sendToTarget();
+			}
+		};
+
         public UsbHandler(Looper looper) {
             super(looper);
             try {
@@ -371,6 +433,8 @@ public class UsbDeviceManager {
                         mBootCompletedReceiver, new IntentFilter(Intent.ACTION_BOOT_COMPLETED));
                 mContext.registerReceiver(
                         mUserSwitchedReceiver, new IntentFilter(Intent.ACTION_USER_SWITCHED));
+				mContext.registerReceiver(
+                        mBootFastReceiver, new IntentFilter(Intent.ACTION_BOOT_FAST));
             } catch (Exception e) {
                 Slog.e(TAG, "Error initializing UsbHandler", e);
             }
@@ -594,6 +658,8 @@ public class UsbDeviceManager {
                 case MSG_UPDATE_STATE:
                     mConnected = (msg.arg1 == 1);
                     mConfigured = (msg.arg2 == 1);
+                    enableWakeLock(mConnected);
+                    enableDPMLock(mConnected);
                     updateUsbNotification();
                     updateAdbNotification();
                     if (containsFunction(mCurrentFunctions,
@@ -633,6 +699,15 @@ public class UsbDeviceManager {
                         mDebuggingManager.setAdbEnabled(mAdbEnabled);
                     }
                     break;
+				case MSG_BOOTFAST_SWITCHED:
+					if(msg.arg1==0){
+						Slog.d(TAG,"boot fast usb switch to none");
+						setUsbConfig("none");
+					}else{
+						Slog.d(TAG,"boot fast usb switch to ok");
+						setUsbConfig(mCurrentFunctions);
+					}
+					break;
                 case MSG_USER_SWITCHED: {
                     final boolean mtpActive =
                             containsFunction(mCurrentFunctions, UsbManager.USB_FUNCTION_MTP)

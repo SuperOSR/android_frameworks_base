@@ -73,6 +73,7 @@ class AlarmManagerService extends IAlarmManager.Stub {
     private static final int RTC_MASK = 1 << RTC;
     private static final int ELAPSED_REALTIME_WAKEUP_MASK = 1 << ELAPSED_REALTIME_WAKEUP; 
     private static final int ELAPSED_REALTIME_MASK = 1 << ELAPSED_REALTIME;
+    private static final int RTC_SHUTDOWN_WAKEUP_MASK = 1 << AlarmManager.RTC_SHUTDOWN_WAKEUP;
     private static final int TIME_CHANGED_MASK = 1 << 16;
     private static final int IS_WAKEUP_MASK = RTC_WAKEUP_MASK|ELAPSED_REALTIME_WAKEUP_MASK;
 
@@ -99,6 +100,7 @@ class AlarmManagerService extends IAlarmManager.Stub {
 
     private Object mLock = new Object();
 
+	private final ArrayList<Alarm> mRtcWakeupShutdownAlarms = new ArrayList<Alarm>();
     private int mDescriptor;
     private long mNextWakeup;
     private long mNextNonWakeup;
@@ -322,7 +324,7 @@ class AlarmManagerService extends IAlarmManager.Stub {
     private final ArrayList<Batch> mAlarmBatches = new ArrayList<Batch>();
 
     static long convertToElapsed(long when, int type) {
-        final boolean isRtc = (type == RTC || type == RTC_WAKEUP);
+        final boolean isRtc = (type == RTC || type == RTC_WAKEUP || type == RTC_SHUTDOWN_WAKEUP);
         if (isRtc) {
             when -= System.currentTimeMillis() - SystemClock.elapsedRealtime();
         }
@@ -631,6 +633,9 @@ class AlarmManagerService extends IAlarmManager.Stub {
                     logBatchesLocked();
                     return false;
                 }
+				if (mRtcWakeupShutdownAlarms.size() > 0) {
+					dumpAlarmList(pw, mRtcWakeupShutdownAlarms, "  ", "RTC_SHUTDOWN_WAKEUP", now);
+				}
             }
         }
         return true;
@@ -723,6 +728,7 @@ class AlarmManagerService extends IAlarmManager.Stub {
     }
     
     public void removeLocked(PendingIntent operation) {
+		removeLocked(mRtcWakeupShutdownAlarms, operation);
         boolean didRemove = false;
         for (int i = mAlarmBatches.size() - 1; i >= 0; i--) {
             Batch b = mAlarmBatches.get(i);
@@ -742,6 +748,7 @@ class AlarmManagerService extends IAlarmManager.Stub {
     }
 
     public void removeLocked(String packageName) {
+		removeLocked(mRtcWakeupShutdownAlarms, packageName);
         boolean didRemove = false;
         for (int i = mAlarmBatches.size() - 1; i >= 0; i--) {
             Batch b = mAlarmBatches.get(i);
@@ -991,6 +998,7 @@ class AlarmManagerService extends IAlarmManager.Stub {
         case RTC_WAKEUP : return "RTC_WAKEUP";
         case ELAPSED_REALTIME : return "ELAPSED";
         case ELAPSED_REALTIME_WAKEUP: return "ELAPSED_WAKEUP";
+        case RTC_SHUTDOWN_WAKEUP:	   return "RTC_WAKEUP";
         default:
             break;
         }

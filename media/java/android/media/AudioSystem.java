@@ -52,13 +52,15 @@ public class AudioSystem
     public static final int STREAM_DTMF = 8;
     /* @hide The audio stream for text to speech (TTS) */
     public static final int STREAM_TTS = 9;
+    /* @hide The audio stream for FM */
+    public static final int STREAM_FM = 10;
     /**
      * @deprecated Use {@link #numStreamTypes() instead}
      */
     public static final int NUM_STREAMS = 5;
 
     // Expose only the getter method publicly so we can change it in the future
-    private static final int NUM_STREAM_TYPES = 10;
+    private static final int NUM_STREAM_TYPES = 11;
     public static final int getNumStreamTypes() { return NUM_STREAM_TYPES; }
 
     /*
@@ -84,7 +86,9 @@ public class AudioSystem
     public static final int MODE_RINGTONE           = 1;
     public static final int MODE_IN_CALL            = 2;
     public static final int MODE_IN_COMMUNICATION   = 3;
-    public static final int NUM_MODES               = 4;
+    public static final int MODE_FACTORY_TEST	    = 4;
+    public static final int MODE_FM		    = 5;
+    public static final int NUM_MODES               = 6;
 
 
     /* Routing bits for the former setRouting/getRouting API */

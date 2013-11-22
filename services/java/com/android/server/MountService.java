@@ -204,6 +204,8 @@ class MountService extends IMountService.Stub
 
     private volatile boolean mSystemReady = false;
 
+	private boolean mUsbConnent = false;
+
     private PackageManagerService                 mPms;
     private boolean                               mUmsEnabling;
     private boolean                               mUmsAvailable = false;
@@ -601,7 +603,24 @@ class MountService extends IMountService.Stub
         public void onReceive(Context context, Intent intent) {
             boolean available = (intent.getBooleanExtra(UsbManager.USB_CONNECTED, false) &&
                     intent.getBooleanExtra(UsbManager.USB_FUNCTION_MASS_STORAGE, false));
-            notifyShareAvailabilityChange(available);
+		    mUsbConnent =  available;
+			//usb status changing,check volume to change usb notification
+            int size = mVolumes.size();
+		    for(int i=0; i<size; i++) {
+			  StorageVolume volume = mVolumes.get(i);
+			  String path  = volume.getPath();
+			  String state = mVolumeStates.get(path);
+              if(volume.allowMassStorage()){
+                 notifyShareAvailabilityChange(available);
+			  }
+			  if(!mUsbConnent&&volume.allowMassStorage()){
+			  	  //usb is disconnented,we should disabled UMS
+				 setUsbMassStorageEnabled(false);
+			  }
+			}
+            //boolean available = (intent.getBooleanExtra(UsbManager.USB_CONNECTED, false) &&
+            //        intent.getBooleanExtra(UsbManager.USB_FUNCTION_MASS_STORAGE, false));
+            //notifyShareAvailabilityChange(available);
         }
     };
 
@@ -702,6 +721,22 @@ class MountService extends IMountService.Stub
                 }
             }
         }
+        /*
+		//check that is there volumes surpport mass storage,and then change the usb notification
+		if(state.equals(Environment.MEDIA_UNMOUNTED)||state.equals(Environment.MEDIA_MOUNTED)){
+		   boolean usbNotification = false;
+		   int size = mVolumes.size();
+		   for(int i=0; i<size; i++) {
+			    StorageVolume volumed = mVolumes.get(i);
+			    String pathed  = volumed.getPath();
+			    String stated = mVolumeStates.get(pathed);
+                if(volumed.allowMassStorage()&&Environment.MEDIA_MOUNTED.equals(stated)){
+                  usbNotification = true;
+			    }
+			}
+		    notifyShareAvailabilityChange(usbNotification&&mUsbConnent);
+		}
+		*/
     }
 
     /**
@@ -853,7 +888,7 @@ class MountService extends IMountService.Stub
                 /* Send the media unmounted event first */
                 if (DEBUG_EVENTS) Slog.i(TAG, "Sending unmounted event first");
                 updatePublicVolumeState(volume, Environment.MEDIA_UNMOUNTED);
-                sendStorageIntent(Environment.MEDIA_UNMOUNTED, volume, UserHandle.ALL);
+                sendStorageIntent(Intent.ACTION_MEDIA_UNMOUNTED, volume, UserHandle.ALL);
 
                 if (DEBUG_EVENTS) Slog.i(TAG, "Sending media removed");
                 updatePublicVolumeState(volume, Environment.MEDIA_REMOVED);
@@ -1330,11 +1365,21 @@ class MountService extends IMountService.Stub
         mContext.registerReceiver(mUserReceiver, userFilter, null, mHandler);
 
         // Watch for USB changes on primary volume
-        final StorageVolume primary = getPrimaryPhysicalVolume();
+        /*final StorageVolume primary = getPrimaryPhysicalVolume();
         if (primary != null && primary.allowMassStorage()) {
             mContext.registerReceiver(
                     mUsbReceiver, new IntentFilter(UsbManager.ACTION_USB_STATE), null, mHandler);
-        }
+        }*/
+        // if volume support mass storage,we should listen to the states of usb
+        int size = mVolumes.size();
+		for(int i=0; i<size; i++) {
+			StorageVolume volume = mVolumes.get(i);
+            if(volume.allowMassStorage()&&!volume.isEmulated()){
+				mContext.registerReceiver(
+                    mUsbReceiver, new IntentFilter(UsbManager.ACTION_USB_STATE), null, mHandler);
+				break;
+			}
+		}
 
         // Watch for idle maintenance changes
         IntentFilter idleMaintenanceFilter = new IntentFilter();
@@ -1479,15 +1524,22 @@ class MountService extends IMountService.Stub
         waitForReady();
         validatePermission(android.Manifest.permission.MOUNT_UNMOUNT_FILESYSTEMS);
 
-        final StorageVolume primary = getPrimaryPhysicalVolume();
-        if (primary == null) return;
+        //final StorageVolume primary = getPrimaryPhysicalVolume();
+        //if (primary == null) return;
 
         // TODO: Add support for multiple share methods
+        int size = mVolumes.size();
+		for(int i=0; i<size; i++) {
 
         /*
          * If the volume is mounted and we're enabling then unmount it
          */
-        String path = primary.getPath();
+        StorageVolume volume = mVolumes.get(i);
+	    if( !volume.allowMassStorage())
+	        continue;
+			
+        //String path = primary.getPath();
+		String path = volume.getPath();
         String vs = getVolumeState(path);
         String method = "ums";
         if (enable && vs.equals(Environment.MEDIA_MOUNTED)) {
@@ -1501,7 +1553,7 @@ class MountService extends IMountService.Stub
         /*
          * If we disabled UMS then mount the volume
          */
-        if (!enable) {
+        if (!enable && vs.equals(Environment.MEDIA_SHARED)) {
             doShareUnshareVolume(path, method, enable);
             if (doMountVolume(path) != StorageResultCode.OperationSucceeded) {
                 Slog.e(TAG, "Failed to remount " + path +
@@ -1513,17 +1565,26 @@ class MountService extends IMountService.Stub
                  */
             }
         }
+		}
     }
 
     public boolean isUsbMassStorageEnabled() {
         waitForReady();
 
-        final StorageVolume primary = getPrimaryPhysicalVolume();
+        /*final StorageVolume primary = getPrimaryPhysicalVolume();
         if (primary != null) {
             return doGetVolumeShared(primary.getPath(), "ums");
         } else {
             return false;
-        }
+        }*/
+        //we should scan all volumes to make sure the massStorage is enable
+        for(int i=0;i<mVolumes.size();i++){
+            StorageVolume volume = mVolumes.get(i);
+			if(volume.allowMassStorage()&&doGetVolumeShared(volume.getPath(),"ums")){
+                return true;
+			}
+		}
+		return false;
     }
 
     /**

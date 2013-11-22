@@ -6028,6 +6028,11 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, bool* outHavePointerIds) {
         if (!inSlot->isInUse()) {
             continue;
         }
+        
+        if((inSlot->getX() == 0) && (inSlot->getY() == 0))
+        {
+        	continue;
+        }
 
         if (outCount >= MAX_POINTERS) {
 #if DEBUG_POINTERS
@@ -6062,7 +6067,8 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, bool* outHavePointerIds) {
         bool isHovering = mTouchButtonAccumulator.getToolType() != AMOTION_EVENT_TOOL_TYPE_MOUSE
                 && (mTouchButtonAccumulator.isHovering()
                         || (mRawPointerAxes.pressure.valid && inSlot->getPressure() <= 0));
-        outPointer.isHovering = isHovering;
+        //outPointer.isHovering = isHovering;
+        outPointer.isHovering = false;
 
         // Assign pointer id using tracking id if available.
         if (*outHavePointerIds) {
@@ -6088,7 +6094,8 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, bool* outHavePointerIds) {
             } else {
                 outPointer.id = id;
                 mCurrentRawPointerData.idToIndex[id] = outCount;
-                mCurrentRawPointerData.markIdBit(id, isHovering);
+                //mCurrentRawPointerData.markIdBit(id, isHovering);
+                mCurrentRawPointerData.markIdBit(id, outPointer.isHovering);
                 newPointerIdBits.markBit(id);
             }
         }

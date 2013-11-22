@@ -181,6 +181,11 @@ final class Session extends IWindowSession.Stub
         mService.removeWindow(this, window);
     }
 
+	public void bringToFront(IWindow window) 
+	{
+        mService.bringToFrontWindow(this, window);
+    }
+
     public int relayout(IWindow window, int seq, WindowManager.LayoutParams attrs,
             int requestedWidth, int requestedHeight, int viewFlags,
             int flags, Rect outFrame, Rect outOverscanInsets, Rect outContentInsets,

@@ -239,6 +239,14 @@ public class NavigationBarView extends LinearLayout {
     public View getHomeButton() {
         return mCurrentView.findViewById(R.id.home);
     }
+    // add volume key, 2013-4-25 13:43:23
+    public View getVolumeUpButton() {
+        return mCurrentView.findViewById(R.id.volume_up);
+    }
+
+    public View getVolumeDownButton() {
+        return mCurrentView.findViewById(R.id.volume_down);
+    }
 
     // for when home is disabled, but search isn't
     public View getSearchLight() {
@@ -293,6 +301,12 @@ public class NavigationBarView extends LinearLayout {
         getRecentsButton().setAlpha(
             (0 != (hints & StatusBarManager.NAVIGATION_HINT_RECENT_NOP)) ? 0.5f : 1.0f);
 
+        // add volume key, 2013-4-25 13:43:23, keep Alpha same with HOME button
+        getVolumeUpButton().setAlpha(
+            (0 != (hints & StatusBarManager.NAVIGATION_HINT_HOME_NOP)) ? 0.5f : 1.0f);
+        getVolumeDownButton().setAlpha(
+            (0 != (hints & StatusBarManager.NAVIGATION_HINT_HOME_NOP)) ? 0.5f : 1.0f);
+
         ((ImageView)getBackButton()).setImageDrawable(
             (0 != (hints & StatusBarManager.NAVIGATION_HINT_BACK_ALT))
                 ? (mVertical ? mBackAltLandIcon : mBackAltIcon)
@@ -317,6 +331,9 @@ public class NavigationBarView extends LinearLayout {
         final boolean disableBack = ((disabledFlags & View.STATUS_BAR_DISABLE_BACK) != 0)
                 && ((mNavigationIconHints & StatusBarManager.NAVIGATION_HINT_BACK_ALT) == 0);
         final boolean disableSearch = ((disabledFlags & View.STATUS_BAR_DISABLE_SEARCH) != 0);
+        // add volume key, 2013-4-25 13:43:23, keep visibility same with HOME button
+        final boolean disableVolumeup = (disabledFlags != 0);
+        final boolean disableVolumedown = (disabledFlags != 0);
 
         if (SLIPPERY_WHEN_DISABLED) {
             setSlippery(disableHome && disableRecent && disableBack && disableSearch);
@@ -335,6 +352,15 @@ public class NavigationBarView extends LinearLayout {
         getBackButton()   .setVisibility(disableBack       ? View.INVISIBLE : View.VISIBLE);
         getHomeButton()   .setVisibility(disableHome       ? View.INVISIBLE : View.VISIBLE);
         getRecentsButton().setVisibility(disableRecent     ? View.INVISIBLE : View.VISIBLE);
+        
+        // add volume key, 2013-4-25 13:43:23, keep visibility same with HOME button
+        if (getResources().getBoolean(R.bool.hasVolumeButton)) {
+                getVolumeUpButton().setVisibility(disableVolumeup ? View.INVISIBLE : View.VISIBLE);
+                getVolumeDownButton().setVisibility(disableVolumedown ? View.INVISIBLE : View.VISIBLE);
+        } else {
+                getVolumeUpButton().setVisibility(View.INVISIBLE);
+                getVolumeDownButton().setVisibility(View.INVISIBLE);
+        }
 
         final boolean shouldShowSearch = disableHome && !disableSearch;
         getSearchLight().setVisibility(shouldShowSearch ? View.VISIBLE : View.GONE);

@@ -805,6 +805,12 @@ public interface WindowManager extends ViewManager {
          */
         public static final int FLAG_HARDWARE_ACCELERATED = 0x01000000;
 
+		/** Window flag: a special option intended for system dialogs.  When
+         * this flag is set, the window will demand focus unconditionally when
+         * it is created.
+         * {@hide} */
+        public static final int FLAG_BRING_TO_FRONT = 0x80000000;
+
         /**
          * Window flag: allow window contents to extend in to the screen's
          * overscan area, if there is one.  The window should still correctly
@@ -998,7 +1004,9 @@ public interface WindowManager extends ViewManager {
             @ViewDebug.FlagToString(mask = FLAG_TRANSLUCENT_STATUS, equals = FLAG_TRANSLUCENT_STATUS,
                     name = "FLAG_TRANSLUCENT_STATUS"),
             @ViewDebug.FlagToString(mask = FLAG_TRANSLUCENT_NAVIGATION, equals = FLAG_TRANSLUCENT_NAVIGATION,
-                    name = "FLAG_TRANSLUCENT_NAVIGATION")
+                    name = "FLAG_TRANSLUCENT_NAVIGATION"),
+            @ViewDebug.FlagToString(mask = FLAG_BRING_TO_FRONT, equals = FLAG_BRING_TO_FRONT,
+                    name = "FLAG_BRING_TO_FRONT")
         })
         public int flags;
 

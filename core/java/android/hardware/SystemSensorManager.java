@@ -20,6 +20,7 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.MessageQueue;
+import android.os.SystemProperties;
 import android.util.Log;
 import android.util.SparseArray;
 import android.util.SparseBooleanArray;
@@ -29,6 +30,8 @@ import dalvik.system.CloseGuard;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import android.content.Context;
+import android.provider.Settings;
 
 /**
  * Sensor manager implementation that communicates with the built-in
@@ -53,6 +56,7 @@ public class SystemSensorManager extends SensorManager {
 
     // Looper associated with the context in which this instance was created.
     private final Looper mMainLooper;
+    private final Context mContext;
     private final int mTargetSdkLevel;
 
     /** {@hide} */

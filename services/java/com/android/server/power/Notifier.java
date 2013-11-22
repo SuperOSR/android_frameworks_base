@@ -72,6 +72,8 @@ final class Notifier {
     private static final int MSG_USER_ACTIVITY = 1;
     private static final int MSG_BROADCAST = 2;
     private static final int MSG_WIRELESS_CHARGING_STARTED = 3;
+	private static final int MSG_BOOT_FAST_WAKE = 4;
+	private static final int MSG_BOOT_FAST_SLEEP = 5;
 
     private final Object mLock = new Object();
 
@@ -102,6 +104,10 @@ final class Notifier {
 
     // True if a user activity message should be sent.
     private boolean mUserActivityPending;
+
+	private boolean mBootFastWakePending;
+
+	private boolean mBootFastSleepPending;
 
     // True if the screen on blocker has been acquired.
     private boolean mScreenOnBlockerAcquired;
@@ -329,6 +335,28 @@ final class Notifier {
         }
     }
 
+	public void onBootFastWake(){
+		synchronized (mLock) {
+            if (!mBootFastWakePending) {
+                mBootFastWakePending = true;
+                Message msg = mHandler.obtainMessage(MSG_BOOT_FAST_WAKE);
+                msg.setAsynchronous(true);
+                mHandler.sendMessage(msg);
+            }
+        }
+	}
+
+	public void onBootFastSleep(){
+		synchronized (mLock) {
+            if (!mBootFastSleepPending) {
+                mBootFastSleepPending = true;
+                Message msg = mHandler.obtainMessage(MSG_BOOT_FAST_SLEEP);
+                msg.setAsynchronous(true);
+                mHandler.sendMessage(msg);
+            }
+        }
+		
+	}
     /**
      * Called when wireless charging has started so as to provide user feedback.
      */
@@ -372,6 +400,39 @@ final class Notifier {
         mPolicy.userActivity();
     }
 
+	private void sendBootFastWake(){
+		synchronized (mLock) {
+			if(!mBootFastWakePending){
+				return;
+			}
+			mBootFastWakePending = false;
+		}
+		
+
+		Intent intent = new Intent(Intent.ACTION_BOOT_FAST);
+		intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY| Intent.FLAG_RECEIVER_REPLACE_PENDING);
+		intent.putExtra(Intent.EXTRA_BOOT_FAST, 1);
+		ActivityManagerNative.broadcastStickyIntent(intent, null,UserHandle.USER_ALL);
+		MobileDirectController.getInstance().setNetworkEnable(true);
+		mPolicy.screenTurningOn(null);
+	}
+
+	private void sendBootFastSleep(){
+		synchronized (mLock) {
+			if(!mBootFastSleepPending){
+				return;
+			}
+			mBootFastSleepPending = false;
+		}
+				
+		Intent intent = new Intent(Intent.ACTION_BOOT_FAST);
+		intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY| Intent.FLAG_RECEIVER_REPLACE_PENDING);
+		intent.putExtra(Intent.EXTRA_BOOT_FAST, 0);
+		ActivityManagerNative.broadcastStickyIntent(intent, null,UserHandle.USER_ALL);
+
+		mPolicy.screenTurnedOff(0);
+		mPolicy.hideScreen(true);
+	}
     private void sendNextBroadcast() {
         final int powerState;
         final int goToSleepReason;
@@ -536,7 +597,12 @@ final class Notifier {
                 case MSG_BROADCAST:
                     sendNextBroadcast();
                     break;
-
+				case MSG_BOOT_FAST_WAKE:
+					sendBootFastWake();
+					break;
+				case MSG_BOOT_FAST_SLEEP:
+					sendBootFastSleep();
+					break;
                 case MSG_WIRELESS_CHARGING_STARTED:
                     playWirelessChargingStartedSound();
                     break;

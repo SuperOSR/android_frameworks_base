@@ -483,6 +483,7 @@ public class SensorEvent {
      * @see GeomagneticField
      */
     public final float[] values;
+    public final float[] originalValue;
 
     /**
      * The sensor that generated this event. See
@@ -503,5 +504,6 @@ public class SensorEvent {
 
     SensorEvent(int valueSize) {
         values = new float[valueSize];
+        originalValue = new float[valueSize];
     }
 }

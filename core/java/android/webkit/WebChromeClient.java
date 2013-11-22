@@ -67,6 +67,12 @@ public class WebChromeClient {
         public void onCustomViewHidden();
     }
 
+    public boolean getEnterFullScreenMode() {
+        return false;
+	}
+
+	public void onShowFloatingVideoView(String path, int positon, CustomViewCallback callback) {};
+    
     /**
      * Notify the host application that the current page would
      * like to show a custom View.  This is used for Fullscreen

@@ -85,6 +85,25 @@ sp<SurfaceComposerClient> BootAnimation::session() const {
     return mSession;
 }
 
+void BootAnimation::playBootMusic(const char* url)
+{
+    int index = 7;
+    audio_devices_t adev;
+
+    if((access(url, F_OK)) != -1) {
+        sp<MediaPlayer> mp = new MediaPlayer();
+        if (mp == NULL || url == NULL) {
+            ALOGE("BootMusic: create MediaPlayer failed");
+            return;
+        }
+        if (mp->setDataSource(url, NULL) == NO_ERROR) {
+            mp->setAudioStreamType(AUDIO_STREAM_ENFORCED_AUDIBLE);
+            mp->prepare();
+            mp->seekTo(0);
+            mp->start();
+        }
+    }
+}
 
 void BootAnimation::binderDied(const wp<IBinder>& who)
 {

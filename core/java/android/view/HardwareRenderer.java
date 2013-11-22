@@ -46,6 +46,13 @@ import javax.microedition.khronos.egl.EGLDisplay;
 import javax.microedition.khronos.egl.EGLSurface;
 import javax.microedition.khronos.opengles.GL;
 
+import android.opengl.GLES20;
+import android.opengl.GLES11Ext;
+import android.opengl.GLSurfaceView;
+import android.opengl.Matrix;
+import javax.microedition.khronos.egl.EGLConfig;
+import javax.microedition.khronos.opengles.GL10;
+
 import java.io.File;
 import java.io.PrintWriter;
 import java.util.concurrent.locks.ReentrantLock;
@@ -1640,6 +1647,21 @@ public abstract class HardwareRenderer {
             if (mProfileEnabled) {
                 drawDisplayListStartTime = System.nanoTime();
             }
+            
+							//Log.v(LOG_TAG, "view instance of:" + view.getClass().getName());
+							String className = view.getClass().getName();
+							if(className.equals("com.softwinner.fireplayer.floatwindow.Window")); 
+							{
+								GLES20.glTexParameterf(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MIN_FILTER,
+					        	        GLES20.GL_NEAREST);
+					        	GLES20.glTexParameterf(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MAG_FILTER,
+					        	        GLES20.GL_LINEAR);
+					        	// Clamp to edge is the only option
+					        	GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_S,
+					        	        GLES20.GL_CLAMP_TO_EDGE);
+					        	GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_T,
+					        	        GLES20.GL_CLAMP_TO_EDGE);
+							}
 
             Trace.traceBegin(Trace.TRACE_TAG_VIEW, "drawDisplayList");
             try {

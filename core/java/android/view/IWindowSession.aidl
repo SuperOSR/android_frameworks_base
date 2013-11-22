@@ -46,6 +46,7 @@ interface IWindowSession {
     int addToDisplayWithoutInputChannel(IWindow window, int seq, in WindowManager.LayoutParams attrs,
             in int viewVisibility, in int layerStackId, out Rect outContentInsets);
     void remove(IWindow window);
+    void bringToFront(IWindow window);
     
     /**
      * Change the parameters of a window.  You supply the

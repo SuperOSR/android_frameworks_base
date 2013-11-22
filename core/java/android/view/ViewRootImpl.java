@@ -680,8 +680,21 @@ public final class ViewRootImpl implements ViewParent,
         if (mTranslator != null) return;
 
         // Try to enable hardware acceleration if requested
-        final boolean hardwareAccelerated =
+        boolean hardwareAccelerated =
                 (attrs.flags & WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED) != 0;
+
+        if( SystemProperties.getBoolean("ro.hwa.force", false) ){
+        	int		index;
+    		String  pckname;
+    		String  substr = "com.android.cts.acceleration";
+    		pckname = context.getPackageName();
+    		    	
+    		index  = pckname.indexOf(substr);
+    		if(index == -1)
+    		{
+    			hardwareAccelerated= true;
+    		}  
+        }
 
         if (hardwareAccelerated) {
             if (!HardwareRenderer.isAvailable()) {
@@ -2962,6 +2975,7 @@ public final class ViewRootImpl implements ViewParent,
     private final static int MSG_INVALIDATE_WORLD = 23;
     private final static int MSG_WINDOW_MOVED = 24;
     private final static int MSG_FLUSH_LAYER_UPDATES = 25;
+    private final static int MSG_BRING_TO_FRONT = 100;
 
     final class ViewRootHandler extends Handler {
         @Override
@@ -3013,6 +3027,8 @@ public final class ViewRootImpl implements ViewParent,
                     return "MSG_WINDOW_MOVED";
                 case MSG_FLUSH_LAYER_UPDATES:
                     return "MSG_FLUSH_LAYER_UPDATES";
+                case MSG_BRING_TO_FRONT:
+                    return "MSG_BRING_TO_FRONT";
             }
             return super.getMessageName(message);
         }
@@ -3169,6 +3185,9 @@ public final class ViewRootImpl implements ViewParent,
             } break;
             case MSG_DIE:
                 doDie();
+                break;
+            case MSG_BRING_TO_FRONT:
+                doBringToFront();
                 break;
             case MSG_DISPATCH_INPUT_EVENT: {
                 InputEvent event = (InputEvent)msg.obj;
@@ -5288,6 +5307,35 @@ public final class ViewRootImpl implements ViewParent,
         WindowManagerGlobal.getInstance().doRemoveView(this);
     }
 
+	public void bringToFront(boolean immediate) 
+	{
+        if (immediate) 
+		{
+            doBringToFront();
+        } 
+		else 
+		{
+            mHandler.sendEmptyMessage(MSG_BRING_TO_FRONT);
+        }
+    }
+
+	void doBringToFront() 
+	{
+        checkThread();
+        if (true) Log.d(TAG, "BRING in " + this + " of " + mSurface);
+        synchronized (this) 
+		{
+			try 
+			{
+            	mWindowSession.bringToFront(mWindow);
+	        } 
+			catch (RemoteException e) 
+			{
+			
+	        }
+        }
+    }
+
     public void requestUpdateConfiguration(Configuration config) {
         Message msg = mHandler.obtainMessage(MSG_UPDATE_CONFIGURATION, config);
         mHandler.sendMessage(msg);
@@ -5509,6 +5557,7 @@ public final class ViewRootImpl implements ViewParent,
     }
 
     private void deliverInputEvent(QueuedInputEvent q) {
+		SurfaceView.adjustSurfaceViewMotion(event);
         Trace.traceBegin(Trace.TRACE_TAG_VIEW, "deliverInputEvent");
         try {
             if (mInputEventConsistencyVerifier != null) {

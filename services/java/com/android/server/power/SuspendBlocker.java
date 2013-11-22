@@ -40,4 +40,8 @@ interface SuspendBlocker {
      * The system may crash.
      */
     void release();
+
+	void bootFastSleepRelease();
+
+	void bootFastWakeAcquire();
 }

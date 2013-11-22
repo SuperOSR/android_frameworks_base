@@ -637,6 +637,7 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode {
         filter.addAction(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
         filter.addAction(Intent.ACTION_SCREEN_OFF);
         filter.addAction(Intent.ACTION_SCREEN_ON);
+        filter.addAction(Intent.ACTION_BOOT_FAST);
         filter.addAction(ACTION_DEMO);
         context.registerReceiver(mBroadcastReceiver, filter);
 
@@ -2429,6 +2430,16 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode {
         }
     };
 
+    private void clearAll() {
+        try {
+            mBarService.onClearAllNotifications();
+        } catch (RemoteException ex) {
+            // system process is dead if we're here.
+        }
+        animateCollapsePanels();
+        visibilityChanged(true);
+    }
+	
     private BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
         public void onReceive(Context context, Intent intent) {
             if (DEBUG) Log.v(TAG, "onReceive: " + intent);
@@ -2455,6 +2466,9 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode {
                 // work around problem where mDisplay.getRotation() is not stable while screen is off (bug 7086018)
                 repositionNavigationBar();
                 notifyNavigationBarScreenOn(true);
+            }else if(Intent.ACTION_BOOT_FAST.equals(action)){
+				Slog.d(TAG,"action boot fast remove all notification");
+				clearAll();
             }
             else if (ACTION_DEMO.equals(action)) {
                 Bundle bundle = intent.getExtras();

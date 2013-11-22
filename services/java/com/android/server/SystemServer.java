@@ -27,6 +27,7 @@ import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.media.AudioService;
 import android.net.wifi.p2p.WifiP2pService;
+import android.os.DynamicPManager;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -128,6 +129,7 @@ class ServerThread {
         ContentService contentService = null;
         LightsService lights = null;
         PowerManagerService power = null;
+        DynamicPManagerService dpm = null;
         DisplayManagerService display = null;
         BatteryService battery = null;
         VibratorService vibrator = null;
@@ -139,6 +141,7 @@ class ServerThread {
         ConnectivityService connectivity = null;
         WifiP2pService wifiP2p = null;
         WifiService wifi = null;
+        EthernetService ethernet = null;
         NsdService serviceDiscovery= null;
         IPackageManager pm = null;
         Context context = null;
@@ -279,6 +282,9 @@ class ServerThread {
             Slog.i(TAG, "Battery Service");
             battery = new BatteryService(context, lights);
             ServiceManager.addService("battery", battery);
+            
+            dpm = new DynamicPManagerService(context);
+            ServiceManager.addService(DynamicPManager.DPM_SERVICE, dpm);
 
             Slog.i(TAG, "Vibrator Service");
             vibrator = new VibratorService(context);
@@ -549,6 +555,14 @@ class ServerThread {
              */
             if (mountService != null && !onlyCore) {
                 mountService.waitForAsecScan();
+            }
+
+           try {
+                Slog.i(TAG, "Ethernet Service");
+                ethernet = new EthernetService(context);
+                ServiceManager.addService(Context.ETHERNET_SERVICE, ethernet);
+            } catch (Throwable e) {
+                reportWtf("starting Ethernet Service", e);
             }
 
             try {
@@ -888,6 +902,12 @@ class ServerThread {
         } catch (Throwable e) {
             reportWtf("making Display Manager Service ready", e);
         }
+
+		try {
+			if(dpm != null) dpm.systemReady();
+		}catch (Throwable e){
+			reportWtf("making DynamicPower Service ready", e);
+		}		
 
         // These are needed to propagate to the runnable below.
         final Context contextF = context;

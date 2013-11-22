@@ -232,6 +232,10 @@ class QuickSettingsModel implements BluetoothStateChangeCallback,
     private RefreshCallback mWifiDisplayCallback;
     private State mWifiDisplayState = new State();
 
+    private QuickSettingsTileView mEthernetTile;
+    private RefreshCallback mEthernetCallback;
+    private State mEthernetState = new State();
+
     private QuickSettingsTileView mRSSITile;
     private RefreshCallback mRSSICallback;
     private RSSIState mRSSIState = new RSSIState();
@@ -370,16 +374,18 @@ class QuickSettingsModel implements BluetoothStateChangeCallback,
     // Airplane Mode
     void addAirplaneModeTile(QuickSettingsTileView view, RefreshCallback cb) {
         mAirplaneModeTile = view;
-        mAirplaneModeTile.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (mAirplaneModeState.enabled) {
-                    setAirplaneModeState(false);
-                } else {
-                    setAirplaneModeState(true);
+	if (mAirplaneModeTile != null) {
+            mAirplaneModeTile.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (mAirplaneModeState.enabled) {
+                        setAirplaneModeState(false);
+                    } else {
+                        setAirplaneModeState(true);
+                    }
                 }
-            }
-        });
+            });
+        }
         mAirplaneModeCallback = cb;
         int airplaneMode = Settings.Global.getInt(mContext.getContentResolver(),
                 Settings.Global.AIRPLANE_MODE_ON, 0);
@@ -407,7 +413,10 @@ class QuickSettingsModel implements BluetoothStateChangeCallback,
                 R.drawable.ic_qs_airplane_on :
                 R.drawable.ic_qs_airplane_off);
         mAirplaneModeState.label = r.getString(R.string.quick_settings_airplane_mode_label);
-        mAirplaneModeCallback.refreshView(mAirplaneModeTile, mAirplaneModeState);
+        // may be called before addAirplaneModeTile
+	if (mAirplaneModeTile != null) {
+            mAirplaneModeCallback.refreshView(mAirplaneModeTile, mAirplaneModeState);
+	}
     }
 
     // Wifi
@@ -551,7 +560,9 @@ class QuickSettingsModel implements BluetoothStateChangeCallback,
             mBluetoothState.label = r.getString(R.string.quick_settings_bluetooth_off_label);
             mBluetoothState.stateContentDescription = r.getString(R.string.accessibility_desc_off);
         }
-        mBluetoothCallback.refreshView(mBluetoothTile, mBluetoothState);
+	if (mBluetoothCallback != null) {
+        	mBluetoothCallback.refreshView(mBluetoothTile, mBluetoothState);
+	}
     }
     void refreshBluetoothTile() {
         if (mBluetoothTile != null) {
@@ -639,6 +650,24 @@ class QuickSettingsModel implements BluetoothStateChangeCallback,
         }
         mWifiDisplayCallback.refreshView(mWifiDisplayTile, mWifiDisplayState);
 
+    }
+
+    // Ethernet
+    void addEthernetTile(QuickSettingsTileView view, RefreshCallback cb) {
+        mEthernetTile = view;
+        mEthernetCallback = cb;
+    }
+    public void onEthernetStateChanged(boolean on) {
+        mEthernetState.enabled = on;
+        if (on) {
+            mEthernetState.label = mContext.getString(R.string.quick_settings_ethernet_label);
+            mEthernetState.iconId = R.drawable.ic_qs_ethernet_established;
+        } else {
+            mEthernetState.label = mContext.getString(
+                    R.string.quick_settings_ethernet_no_connection_label);
+            mEthernetState.iconId = R.drawable.ic_qs_ethernet_error;
+        }
+        mEthernetCallback.refreshView(mEthernetTile, mEthernetState);
     }
 
     // IME

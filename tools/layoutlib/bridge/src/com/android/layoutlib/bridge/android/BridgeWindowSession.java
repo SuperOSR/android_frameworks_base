@@ -98,6 +98,11 @@ public final class BridgeWindowSession implements IWindowSession {
         // pass for now.
     }
 
+	public void bringToFront(IWindow window) 
+	{
+        
+    }
+
     @Override
     public boolean outOfMemory(IWindow window) throws RemoteException {
         return false;

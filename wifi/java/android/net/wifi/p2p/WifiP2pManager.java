@@ -276,6 +276,19 @@ public class WifiP2pManager {
     public static final String EXTRA_WIFI_P2P_DEVICE = "wifiP2pDevice";
 
     /**
+     * Broadcast intent action indicating that this device or peer get ip address successfully.
+     */
+    @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
+    public static final String WIFI_P2P_GO_CLIENT_CONNECTION_ACTION =
+        "android.net.wifi.p2p.GO_CLIENT_CONNECTION_CHANGED";
+
+    /**
+     * The lookup key for a {@link String} object
+     * Retrieve with {@link android.content.Intent#getStringExtra(String)}.
+     */
+    public static final String EXTRA_WIFI_P2P_IP_INFO = "wifiP2pIpInfo";
+
+    /**
      * Broadcast intent action indicating that remembered persistent groups have changed.
      * @hide
      */

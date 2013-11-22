@@ -358,4 +358,7 @@
 
     <!-- width of ImmersiveModeConfirmation (-1 for match_parent) -->
     <dimen name="immersive_mode_cling_width">-1px</dimen>
+    
+    <!-- add by dk -->
+    <dimen name="kg_status_am_pm_font_size">30dp</dimen>
 </resources>

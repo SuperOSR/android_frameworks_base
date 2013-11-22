@@ -171,6 +171,14 @@ public final class DisplayManager {
      */
     public static final int VIRTUAL_DISPLAY_FLAG_SECURE = 1 << 2;
 
+    public static final int DISPLAY_2D_ORIGINAL = 0;
+    public static final int DISPLAY_2D_LEFT = 1;
+    public static final int DISPLAY_2D_TOP = 2;
+    public static final int DISPLAY_3D_LEFT_RIGHT_HDMI = 3;
+    public static final int DISPLAY_3D_TOP_BOTTOM_HDMI = 4;
+
+    private static final int DISPLAY_CMD_SET3DMODE = 0x01;
+
     /** @hide */
     public DisplayManager(Context context) {
         mContext = context;
@@ -451,5 +459,10 @@ public final class DisplayManager {
          * @param displayId The id of the logical display that changed.
          */
         void onDisplayChanged(int displayId);
+    }
+
+    public int setDisplay3DMode(int displaytype, int display3dMode) {
+        return mGlobal.setDisplayParameter(displaytype, DISPLAY_CMD_SET3DMODE,
+                display3dMode, 0, 0);
     }
 }

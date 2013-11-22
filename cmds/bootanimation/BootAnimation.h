@@ -25,6 +25,7 @@
 
 #include <EGL/egl.h>
 #include <GLES/gl.h>
+#include <media/mediaplayer.h>
 
 class SkBitmap;
 
@@ -43,6 +44,7 @@ public:
     virtual     ~BootAnimation();
 
     sp<SurfaceComposerClient> session() const;
+    void playBootMusic(const char* url);
 
 private:
     virtual bool        threadLoop();

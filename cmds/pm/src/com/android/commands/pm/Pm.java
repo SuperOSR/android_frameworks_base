@@ -116,6 +116,10 @@ public final class Pm {
             runInstall();
             return;
         }
+        if ("preinstall".equals(op)) {
+        	preInstall();
+			return;
+        }
 
         if ("uninstall".equals(op)) {
             runUninstall();
@@ -785,7 +789,57 @@ public final class Pm {
             System.err.println(PM_NOT_RUNNING_ERR);
         }
     }
-
+	private void preInstall() {
+		 String path = nextArg();
+		 int i;
+		 
+		 System.out.println("\t preInstall path: " + path);
+		 if (path == null) {
+            System.err.println("Error: no package specified");
+            showUsage();
+            return;
+        }
+		File dir = new File(path);
+		if(!(dir.exists()&&dir.canRead())){
+			System.out.println("\t preInstall path: " + path + " donot exist or read");	
+			return;
+		}
+		 
+		File[] files = dir.listFiles();		
+		if(files.length<=0){
+			System.out.println("\t preInstall path: " + path + " donot hava files to preinstall");	
+			return;
+		}
+			
+		for(File apkFilePath : files) {
+			System.out.println("\t pkg: " + apkFilePath);
+			PackageInstallObserver obs = new PackageInstallObserver();			
+			try {
+            	mPm.installPackage(Uri.fromFile(apkFilePath), obs, 0,null);
+            	
+				synchronized (obs) {
+                	while (!obs.finished) {
+                    	try {                    		
+                        	obs.wait();                        	
+                    	} catch (InterruptedException e) {
+                    		System.err.println("\t " + e);
+                    	}
+                	}
+                	if (obs.result == PackageManager.INSTALL_SUCCEEDED) {
+                    	System.out.println("Success");
+               		} else {
+                    	System.err.println("Failure ["
+                            + installFailureToString(obs.result)
+                            + "]");
+                	}
+            	}
+        	} catch (RemoteException e) {
+            	System.err.println(e.toString());
+            	System.err.println(PM_NOT_RUNNING_ERR);
+        	}
+		}
+		System.out.println("\t preInstall path: " + path + " ok");	
+	}
     private void runInstall() {
         int installFlags = PackageManager.INSTALL_ALL_USERS;
         String installerPackageName = null;

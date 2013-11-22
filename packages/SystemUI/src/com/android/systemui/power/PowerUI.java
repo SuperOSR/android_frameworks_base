@@ -245,6 +245,11 @@ public class PowerUI extends SystemUI {
     }
 
     void playLowBatterySound() {
+		PowerManager mPM = (PowerManager)mContext.getSystemService(Context.POWER_SERVICE);
+		if(mPM.isBootFastStatus()){
+			Slog.i(TAG,"in boot fast status not play low power sound because we 'real shutduon'");
+			return;
+		}
         final ContentResolver cr = mContext.getContentResolver();
 
         final int silenceAfter = Settings.Global.getInt(cr,

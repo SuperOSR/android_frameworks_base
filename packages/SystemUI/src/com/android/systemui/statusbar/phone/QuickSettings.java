@@ -41,6 +41,9 @@ import android.graphics.drawable.LevelListDrawable;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.WifiDisplayStatus;
 import android.net.wifi.WifiManager;
+import android.net.ethernet.EthernetManager;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.RemoteException;
@@ -99,6 +102,9 @@ class QuickSettings {
     private BluetoothState mBluetoothState;
     private BluetoothAdapter mBluetoothAdapter;
     private WifiManager mWifiManager;
+    
+    private ConnectivityManager mCm;
+    private boolean mEthernetConnected;
 
     private BluetoothController mBluetoothController;
     private RotationLockController mRotationLockController;
@@ -130,12 +136,24 @@ class QuickSettings {
         mWifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
 
         mHandler = new Handler();
+        
+        mCm = (ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if(mCm != null) {
+            NetworkInfo networkinfo = mCm.getNetworkInfo(ConnectivityManager.TYPE_ETHERNET);
+            if(networkinfo.isConnected()) {
+                mEthernetConnected = true;
+            } else {
+                mEthernetConnected = false;
+            }
+        } else
+            mEthernetConnected = false;
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(DisplayManager.ACTION_WIFI_DISPLAY_STATUS_CHANGED);
         filter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
         filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
         filter.addAction(Intent.ACTION_USER_SWITCHED);
+        filter.addAction(EthernetManager.NETWORK_STATE_CHANGED_ACTION);
         filter.addAction(Intent.ACTION_CONFIGURATION_CHANGED);
         filter.addAction(KeyChain.ACTION_STORAGE_CHANGED);
         mContext.registerReceiver(mReceiver, filter);
@@ -173,6 +191,7 @@ class QuickSettings {
         setupQuickSettings();
         updateWifiDisplayStatus();
         updateResources();
+        updateEthernetStatus();
         applyLocationEnabledStatus();
 
         networkController.addNetworkSignalChangedCallback(mModel);
@@ -534,25 +553,31 @@ class QuickSettings {
         parent.addView(batteryTile);
 
         // Airplane Mode
-        final QuickSettingsBasicTile airplaneTile
-                = new QuickSettingsBasicTile(mContext);
-        mModel.addAirplaneModeTile(airplaneTile, new QuickSettingsModel.RefreshCallback() {
-            @Override
-            public void refreshView(QuickSettingsTileView unused, State state) {
-                airplaneTile.setImageResource(state.iconId);
-
-                String airplaneState = mContext.getString(
-                        (state.enabled) ? R.string.accessibility_desc_on
-                                : R.string.accessibility_desc_off);
-                airplaneTile.setContentDescription(
-                        mContext.getString(R.string.accessibility_quick_settings_airplane, airplaneState));
-                airplaneTile.setText(state.label);
-            }
-        });
-        parent.addView(airplaneTile);
+        // add condition for AirplaneTile, yemao, 2013-5-27 19:52:14
+		if (mContext.getResources().getBoolean(R.bool.quick_settings_show_airplane_switch)) {
+            QuickSettingsTileView airplaneTile = (QuickSettingsTileView)
+                    inflater.inflate(R.layout.quick_settings_tile, parent, false);
+            airplaneTile.setContent(R.layout.quick_settings_tile_airplane, inflater);
+            mModel.addAirplaneModeTile(airplaneTile, new QuickSettingsModel.RefreshCallback() {
+                @Override
+                public void refreshView(QuickSettingsTileView view, State state) {
+                    TextView tv = (TextView) view.findViewById(R.id.airplane_mode_textview);
+                    tv.setCompoundDrawablesWithIntrinsicBounds(0, state.iconId, 0, 0);
+					String airplaneState = mContext.getString(
+                            (state.enabled) ? R.string.accessibility_desc_on
+                                    : R.string.accessibility_desc_off);
+                    view.setContentDescription(
+                            mContext.getString(R.string.accessibility_quick_settings_airplane, airplaneState));
+                    tv.setText(state.label);
+                }
+            });
+            parent.addView(airplaneTile);
+        }
 
         // Bluetooth
+        // add condition for BluetoothTile, yemao, 2013-5-27 19:52:40
         if (mModel.deviceSupportsBluetooth()
+            && mContext.getResources().getBoolean(R.bool.quick_settings_show_bluetooth_setting)) {
                 || DEBUG_GONE_TILES) {
             final QuickSettingsBasicTile bluetoothTile
                     = new QuickSettingsBasicTile(mContext);
@@ -671,6 +696,27 @@ class QuickSettings {
                 new QuickSettingsModel.BasicRefreshCallback(wifiDisplayTile)
                         .setShowWhenEnabled(true));
         parent.addView(wifiDisplayTile);
+        
+        // Ethernet
+        QuickSettingsTileView ethernetTile = (QuickSettingsTileView)
+                inflater.inflate(R.layout.quick_settings_tile, parent, false);
+        ethernetTile.setContent(R.layout.quick_settings_tile_ethernet, inflater);
+        ethernetTile.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startSettingsActivity(android.provider.Settings.ACTION_ETHERNET_SETTINGS);
+            }
+        });
+        mModel.addEthernetTile(ethernetTile, new QuickSettingsModel.RefreshCallback() {
+            @Override
+            public void refreshView(QuickSettingsTileView view, State state) {
+                TextView tv = (TextView) view.findViewById(R.id.ethernet_textview);
+                tv.setText(state.label);
+                tv.setCompoundDrawablesWithIntrinsicBounds(0, state.iconId, 0, 0);
+                view.setVisibility(state.enabled ? View.VISIBLE : View.GONE);
+            }
+        });
+        parent.addView(ethernetTile);
 
         if (SHOW_IME_TILE || DEBUG_GONE_TILES) {
             // IME
@@ -814,6 +860,25 @@ class QuickSettings {
         mModel.onWifiDisplayStateChanged(mWifiDisplayStatus);
     }
 
+    private void updateEthernetStatus() {
+        mCm = (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if(mCm != null) {
+            NetworkInfo networkinfo = mCm.getNetworkInfo(ConnectivityManager.TYPE_ETHERNET);
+            if(networkinfo.isConnected()) {
+                mEthernetConnected = true;
+            } else {
+                mEthernetConnected = false;
+            }
+        } else
+            mEthernetConnected = false;
+
+        applyEthernetStatus();
+    }
+
+    private void applyEthernetStatus() {
+        mModel.onEthernetStateChanged(mEthernetConnected);
+    }
+
     private void applyBluetoothStatus() {
         mModel.onBluetoothStateChange(mBluetoothState);
     }
@@ -854,6 +919,11 @@ class QuickSettings {
                 applyBluetoothStatus();
             } else if (Intent.ACTION_USER_SWITCHED.equals(action)) {
                 reloadUserInfo();
+            } else if (action.equals(EthernetManager.NETWORK_STATE_CHANGED_ACTION)) {
+                final NetworkInfo networkInfo =
+                            (NetworkInfo) intent.getParcelableExtra(EthernetManager.EXTRA_NETWORK_INFO);
+                mEthernetConnected = networkInfo != null && networkInfo.isConnected();
+                applyEthernetStatus();
             } else if (Intent.ACTION_CONFIGURATION_CHANGED.equals(action)) {
                 if (mUseDefaultAvatar) {
                     queryForUserInformation();

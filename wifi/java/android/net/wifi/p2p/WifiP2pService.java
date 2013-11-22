@@ -47,6 +47,8 @@ import android.net.wifi.p2p.WifiP2pGroupList.GroupDeleteListener;
 import android.net.wifi.p2p.nsd.WifiP2pServiceInfo;
 import android.net.wifi.p2p.nsd.WifiP2pServiceRequest;
 import android.net.wifi.p2p.nsd.WifiP2pServiceResponse;
+import android.net.LocalServerSocket;
+import android.net.LocalSocket;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -78,14 +80,20 @@ import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.io.DataInputStream;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Properties;
 
 
 /**
@@ -231,6 +239,20 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
     private static final String[] DHCP_RANGE = {"192.168.49.2", "192.168.49.254"};
     private static final String SERVER_ADDRESS = "192.168.49.1";
 
+    /* AllShare Cast Dongle Mac Rangth {F8:D0:BD:00:00:00 - F8:D0:BD:FF:FF:FF}, Samsung Electronics Co.,Ltd.
+     * Get similar device mac address from /system/etc/wfd_blacklist.conf
+     * As a source, when negotiated with sink as a GO and this Group remembered as persistent by wpa_supplicant.
+     * When issued by source self once again, it will send invitation directly and set persistent to 0(allshare), not 1(netgear).
+     * Allshare Cast will ignore this invitation issued by jb4.2.2. God knows persist compatible issue.
+     */
+    private static final String ALLSHARE_CAST_DONGLE_MAC1 = "F8:D0:BD";
+    private static final String ALLSHARE_CAST_DONGLE_MAC2 = "D8:57:EF";
+    private static final String WFD_NO_INVITE_DEV_MAC_FILE = "/etc/wfd_blacklist.conf";
+    // properties loaded from WFD_NO_INVITE_DEV_MAC_FILE
+    private Properties mProperties;
+    private String mNoInvitDevMac;
+    private String[] mNoInvitDevMacList;
+
     /**
      * Error code definition.
      * see the Table.8 in the WiFi Direct specification for the detail.
@@ -321,6 +343,33 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
 
         mThisDevice.primaryDeviceType = mContext.getResources().getString(
                 com.android.internal.R.string.config_wifi_p2p_device_type);
+
+        mProperties = new Properties();
+        try {
+            File file = new File(WFD_NO_INVITE_DEV_MAC_FILE);
+            FileInputStream stream = new FileInputStream(file);
+            mProperties.load(stream);
+            stream.close();
+
+            mNoInvitDevMac = mProperties.getProperty("NO_INVITE_MAC");
+            if (mNoInvitDevMac != null) {
+                mNoInvitDevMacList = mNoInvitDevMac.split(",");
+                if (mNoInvitDevMacList != null) {
+                    for (int i = 0; i < mNoInvitDevMacList.length; i++) {
+                        Slog.d(TAG, "wfd blacklist mac range " + i +".[" + mNoInvitDevMacList[i] + "]");
+                    }
+                } else {
+                    mNoInvitDevMacList = new String[2];
+                    mNoInvitDevMacList[0] = ALLSHARE_CAST_DONGLE_MAC1;
+                    mNoInvitDevMacList[1] = ALLSHARE_CAST_DONGLE_MAC2;
+                }
+            }
+        } catch (IOException e) {
+            Slog.d(TAG, "Could not open wfd blacklist file [" + WFD_NO_INVITE_DEV_MAC_FILE + "]");
+            mNoInvitDevMacList = new String[2];
+            mNoInvitDevMacList[0] = ALLSHARE_CAST_DONGLE_MAC1;
+            mNoInvitDevMacList[1] = ALLSHARE_CAST_DONGLE_MAC2;
+        }
 
         mP2pStateMachine = new P2pStateMachine(TAG, mP2pSupported);
         mP2pStateMachine.start();
@@ -1885,6 +1934,13 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                             // try invitation.
                             sendMessage(WifiP2pManager.CONNECT, mSavedPeerConfig);
                         }
+                    } else if (status == P2pStatus.INFORMATION_IS_CURRENTLY_UNAVAILABLE) {
+                        if(mSavedProvDiscDevice != null) {
+                            Slog.d(TAG, "mSavedProvDiscDevice[" + mSavedProvDiscDevice + "].");
+                            mSavedProvDiscDevice = null;
+                        } else {
+			    Slog.d(TAG, "mSavedProvDiscDevice [" + mSavedProvDiscDevice + "]");
+			}
                     }
                     break;
                 case WifiMonitor.P2P_PROV_DISC_PBC_REQ_EVENT:
@@ -2328,7 +2384,7 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
 
         boolean join = dev.isGroupOwner();
         String ssid = mWifiNative.p2pGetSsid(dev.deviceAddress);
-        if (DBG) logd("target ssid is " + ssid + " join:" + join);
+        logd("target ssid is " + ssid + " join:" + join);
 
         if (join && dev.isGroupLimit()) {
             if (DBG) logd("target device reaches group limit.");
@@ -2363,8 +2419,22 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
             }
             if (netId < 0) {
                 netId = getNetworkIdFromClientList(dev.deviceAddress);
+                boolean isAllShare = false;
+                try {
+                    for (int i = 0; i < mNoInvitDevMacList.length; i++) {
+                        isAllShare = dev.deviceAddress.toLowerCase().startsWith(
+                                        mNoInvitDevMacList[i].toLowerCase());
+                        if(isAllShare) {
+                            break;
+                        }
+                    }
+                } catch(NullPointerException e) {}
+                if(isAllShare) {
+                    netId = -1;
+                    Slog.d(TAG, "allshare p2pclient persistent.");
+                }
             }
-            if (DBG) logd("netId related with " + dev.deviceAddress + " = " + netId);
+            logd("netId related with " + dev.deviceAddress + " = " + netId);
             if (netId >= 0) {
                 // Invoke the persistent group.
                 if (mWifiNative.p2pReinvoke(netId, dev.deviceAddress)) {
@@ -2924,6 +2994,85 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
         }
 
         return clientInfo;
+    }
+
+    /*
+     * when Negotiated as GO, start dnsmasq as dhcp server, we are waiting for
+     * client connect to us.
+     * condition: trigger this only when the peer device contains SOURCE or dual WFD IE.
+     */
+    private class ServerSocketListener extends Thread {
+        public ServerSocketListener() {
+            super("wfd_ip_alloc");
+        }
+
+        @Override
+        public void run() {
+            try {
+                LocalServerSocket server = new LocalServerSocket("android.net.wifi.p2p");
+                if(server == null) {
+                    Slog.e(TAG, "Server is null !");
+                    return;
+                }
+                String ipInfo = "none";
+                while (true) {
+                    Slog.d(TAG, "Waiting for client to connect us.");
+                    LocalSocket receiver = server.accept();
+                    Slog.d(TAG, "One client connects to us now.");
+                    if (receiver != null) {
+                        InputStream in = receiver.getInputStream();
+                        int readed = in.read();
+                        Slog.d(TAG, "1.readed[" + readed + "]");
+                        if(readed > 0) {
+                            DataInputStream din = new DataInputStream(in);
+                            ipInfo = din.readLine();
+                            din.close();
+                            // send a broadcast notify settings.
+                            sendP2pGoClientIpChangedBroadcast(ipInfo);
+                            Slog.d(TAG, "1.send a broadcast to notify settings[" + ipInfo + "]");
+                        } else {
+                            Slog.d(TAG, "sleep 10ms start.");
+                            try {
+                                Thread.sleep(10);//10ms
+                            } catch (InterruptedException ignore) {}
+                            Slog.d(TAG, "sleep 10ms end.");
+                            readed = in.read();
+                            Slog.d(TAG, "2.readed[" + readed + "]");
+                            if(readed > 0) {
+                                DataInputStream din = new DataInputStream(in);
+                                ipInfo = din.readLine();
+                                din.close();
+                                // send a broadcast notify settings.
+                                sendP2pGoClientIpChangedBroadcast(ipInfo);
+                                Slog.d(TAG, "2.send a broadcast to notify settings[" + ipInfo + "]");
+                            }
+                        }
+                        in.close();
+                        receiver.close();
+                        break;
+                    } else {
+                        Slog.e(TAG, "Receiver is null !");
+                        break;
+                    }
+                }// end of while (true) {
+
+                if(server != null)
+                    server.close();
+
+            } catch (IOException e) {
+                Slog.e(TAG, e.getMessage());
+            }
+        }
+    }
+
+    private void sendP2pGoClientIpChangedBroadcast(String ipInfo) {
+        if (DBG) logd("sending p2p go clent ip address changed broadcast");
+        Intent intent = new Intent(WifiP2pManager.WIFI_P2P_GO_CLIENT_CONNECTION_ACTION);
+        intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT
+                | Intent.FLAG_RECEIVER_REPLACE_PENDING);
+        intent.putExtra(WifiP2pManager.EXTRA_WIFI_P2P_IP_INFO, ipInfo);
+
+        mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
     }
 
     }

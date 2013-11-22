@@ -34,10 +34,12 @@
        <item><xliff:g id="id">mute</xliff:g></item>
        <item><xliff:g id="id">volume</xliff:g></item>
        <item><xliff:g id="id">wifi</xliff:g></item>
+       <item><xliff:g id="id">ethernet</xliff:g></item>
        <item><xliff:g id="id">cdma_eri</xliff:g></item>
        <item><xliff:g id="id">data_connection</xliff:g></item>
        <item><xliff:g id="id">phone_evdo_signal</xliff:g></item>
        <item><xliff:g id="id">phone_signal</xliff:g></item>
+       <item><xliff:g id="id">headset</xliff:g></item>
        <item><xliff:g id="id">battery</xliff:g></item>
        <item><xliff:g id="id">alarm_clock</xliff:g></item>
        <item><xliff:g id="id">secure</xliff:g></item>
@@ -544,7 +546,7 @@
     <integer name="config_shutdownBatteryTemperature">680</integer>
 
     <!-- Display low battery warning when battery level dips to this value -->
-    <integer name="config_lowBatteryWarningLevel">15</integer>
+    <integer name="config_lowBatteryWarningLevel">10</integer>
 
     <!-- Close low battery warning when battery level reaches this value -->
     <integer name="config_lowBatteryCloseWarningLevel">20</integer>
@@ -773,6 +775,8 @@
     <string-array name="config_locationProviderPackageNames" translatable="false">
         <!-- The standard AOSP fused location provider -->
         <item>com.android.location.fused</item>
+        <!-- The Google Network Location Services location provider -->
+        <item>com.google.android.location</item>
     </string-array>
 
     <!-- Boolean indicating if current platform supports bluetooth SCO for off call
@@ -1199,6 +1203,28 @@
 
     <!-- Flag indicating if the speed up audio on mt call code should be executed -->
     <bool name="config_speed_up_audio_on_mt_calls">false</bool>
+    
+    <!-- Package name providing network location support. -->
+    <string name="config_networkLocationProviderPackageName" translatable="false">com.google.android.location</string>
+ 
+     <!-- Package name providing geocoder API support. -->
+    <string name="config_geocodeProviderPackageName" translatable="false">com.google.android.location</string>
+    
+            <!-- Component name of the service providing network location support. -->
+    
+    <string name="config_networkLocationProvider">com.google.android.location.NetworkLocationProvider</string>
+
+    
+    <!-- Component name of the service providing geocoder API support. -->
+    
+    <string name="config_geocodeProvider">com.google.android.location.GeocodeProvider</string> 
+
+    <!-- default windowAnimationScale value: 0x, 0.5x, 1.0x, 1.5x, 2.0x, 5.0x, 10.0x
+         actual_windowAnimationScale = config_default_windowAnimationScale -->
+    <string name="config_default_windowAnimationScale">1.0</string>
+    <!-- default transitionAnimationScale value: 0x, 0.5x, 1.0x, 1.5x, 2.0x, 5.0x, 10.0x
+         actual_transitionAnimationScale = config_default_transitionAnimationScale -->
+    <string name="config_default_transitionAnimationScale">1.0</string>
 
     <!-- Class name of the framework account picker activity.
          Can be customized for other product types -->

@@ -154,8 +154,8 @@ static bool validatePointerCoordsObjArray(JNIEnv* env, jobjectArray pointerCoord
 
 static bool validatePointerIndex(JNIEnv* env, jint pointerIndex, size_t pointerCount) {
     if (pointerIndex < 0 || size_t(pointerIndex) >= pointerCount) {
-        jniThrowException(env, "java/lang/IllegalArgumentException",
-                "pointerIndex out of range");
+        //jniThrowException(env, "java/lang/IllegalArgumentException",
+        //        "pointerIndex out of range");
         return false;
     }
     return true;

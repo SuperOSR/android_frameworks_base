@@ -232,6 +232,29 @@ public class ZygoteInit {
         preloadResources();
         preloadOpenGL();
     }
+    private static Thread mCThread = new Thread(new Runnable(){
+    	@Override
+    	public void run(){
+    		preloadClasses();
+    	}
+    });
+    
+    private static Thread mRThread = new Thread(new Runnable(){
+    	@Override
+    	public void run(){
+    		preloadResources();
+    	}
+    });
+    static void asyncPreload(){
+    	try{
+    		mCThread.start();
+    		mRThread.start();
+    		mCThread.join();
+    		mRThread.join();
+    	}catch(InterruptedException e){
+    		Log.e(TAG,"asyncPreload failed");
+    	}
+    }
 
     private static void preloadOpenGL() {
         if (!SystemProperties.getBoolean(PROPERTY_DISABLE_OPENGL_PRELOADING, false)) {
@@ -559,7 +582,8 @@ public class ZygoteInit {
             registerZygoteSocket();
             EventLog.writeEvent(LOG_BOOT_PROGRESS_PRELOAD_START,
                 SystemClock.uptimeMillis());
-            preload();
+            //preload();
+			 asyncPreload();
             EventLog.writeEvent(LOG_BOOT_PROGRESS_PRELOAD_END,
                 SystemClock.uptimeMillis());
 

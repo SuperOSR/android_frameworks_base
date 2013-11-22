@@ -227,6 +227,8 @@ final class ActivityStack {
     int mThumbnailHeight = -1;
 
     int mCurrentUser;
+    
+    native void checkFileName(String name,int pid);
 
     final int mStackId;
 
@@ -1240,7 +1242,9 @@ final class ActivityStack {
             if (DEBUG_STACK) mStackSupervisor.validateTopActivitiesLocked();
             return mStackSupervisor.resumeHomeActivity(prev);
         }
-
+        if(next.app!=null){
+        	checkFileName(next.packageName,next.app.pid);
+        }
         next.delayedResume = false;
 
         // If the top activity is the resumed one, nothing to do.

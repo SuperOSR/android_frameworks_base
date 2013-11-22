@@ -49,6 +49,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import android.content.ContentResolver;
+import android.database.ContentObserver;
+import android.provider.Settings;
+import android.provider.Settings.SettingNotFoundException;
+import android.view.Surface;
 /**
  * Manages attached displays.
  * <p>
@@ -195,6 +200,115 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
     // input system.  May be used outside of the lock but only on the handler thread.
     private final DisplayViewport mTempDefaultViewport = new DisplayViewport();
     private final DisplayViewport mTempExternalTouchViewport = new DisplayViewport();
+    
+    private static final int DISPLAY_CMD_SETBACKLIGHTMODE = 0x02;
+    private static final int DISPLAY_CMD_SETBACKLIGHTDEMOMODE = 0x03;
+    private static final int DISPLAY_CMD_SETDISPLAYENHANCEMODE = 0x04;
+    private static final int DISPLAY_CMD_SETDISPLAYENHANCEDEMOMODE = 0x05;
+    private static final int DISPLAY_CMD_SETOUTPUTMODE = 0x06;
+
+    private static final int DISPLAY_OUTPUT_TYPE_HDMI = 4;
+
+    private static final int DISPLAY_TVFORMAT_720P_50HZ = 4;
+    private static final int DISPLAY_TVFORMAT_720P_60HZ = 5;
+    private static final int DISPLAY_TVFORMAT_1080I_50HZ = 6;
+    private static final int DISPLAY_TVFORMAT_1080I_60HZ = 7;
+    private static final int DISPLAY_TVFORMAT_1080P_24HZ = 8;
+    private static final int DISPLAY_TVFORMAT_1080P_50HZ = 9;
+    private static final int DISPLAY_TVFORMAT_1080P_60HZ = 0xa;
+    private static final int DISPLAY_TVFORMAT_AUTO = 0xFF;
+
+    private int mBrightSystemMode;
+    private int mBrightnessLightMode;
+    private int mHdmiOutputMode;
+    private boolean mIsFullScreen;
+
+    class SettingsObserver extends ContentObserver {
+        SettingsObserver(Handler handler) {
+            super(handler);
+        }
+
+        void observe() {
+            ContentResolver resolver = mContext.getContentResolver();
+            resolver.registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.BRIGHT_SYSTEM_MODE), false, this);
+            resolver.registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.BRIGHTNESS_LIGHT_MODE), false, this);
+            resolver.registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.HDMI_OUTPUT_MODE), false, this);
+            resolver.registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.HDMI_FULL_SCREEN), false, this);
+            update();
+        }
+
+        @Override public void onChange(boolean selfChange) {
+            update();
+        }
+
+        public void update() {
+            ContentResolver resolver = mContext.getContentResolver();
+            try{
+                int brightSystemMode = Settings.System.getInt(resolver,
+                        Settings.System.BRIGHT_SYSTEM_MODE);
+                int brightnessLightMode = Settings.System.getInt(resolver,
+                        Settings.System.BRIGHTNESS_LIGHT_MODE);
+                int hdmiOutputMode = Settings.System.getInt(resolver,
+                        Settings.System.HDMI_OUTPUT_MODE);
+                boolean isFullScreen = (Settings.System.getInt(resolver,
+                        Settings.System.HDMI_FULL_SCREEN) & 0x01) > 0;
+
+                switch (hdmiOutputMode) {
+                    case 0:
+                        hdmiOutputMode = DISPLAY_TVFORMAT_AUTO;
+                        break;
+                    case 1:
+                        hdmiOutputMode = DISPLAY_TVFORMAT_720P_50HZ;
+                        break;
+                    case 2:
+                        hdmiOutputMode = DISPLAY_TVFORMAT_720P_60HZ;
+                        break;
+                    case 3:
+                        hdmiOutputMode = DISPLAY_TVFORMAT_1080P_24HZ;
+                        break;
+                    case 4:
+                        hdmiOutputMode = DISPLAY_TVFORMAT_1080P_50HZ;
+                        break;
+                    case 5:
+                        hdmiOutputMode = DISPLAY_TVFORMAT_1080P_60HZ;
+                        break;
+                }
+
+                if (mBrightSystemMode!=brightSystemMode){
+                    Slog.v(TAG,"update:brightSystemMode="+brightSystemMode);
+                    mBrightSystemMode = brightSystemMode;
+                    setDisplayEnhanceMode((mBrightSystemMode&0x01)>0?1:0);
+                    setDisplayEnhanceDemoMode((mBrightSystemMode&0x02)>0?1:0);
+                }
+                if (mBrightnessLightMode!=brightnessLightMode){
+                    Slog.v(TAG,"update:brightnessLightMode="+brightnessLightMode);
+                    mBrightnessLightMode = brightnessLightMode;
+                    setDisplayBacklightMode((mBrightnessLightMode&0x01)>0?1:0);
+                    setDisplayBacklightDemoMode((mBrightnessLightMode&0x02)>0?1:0);
+                }
+                if (mHdmiOutputMode != hdmiOutputMode){
+                    Slog.v(TAG,"update:hdmiOutputMode=" + hdmiOutputMode);
+                    mHdmiOutputMode = hdmiOutputMode;
+                    setHdmiOutputMode(DISPLAY_OUTPUT_TYPE_HDMI, mHdmiOutputMode);
+                }
+                if (mIsFullScreen != isFullScreen){
+                    Slog.v(TAG,"update:isFullScreen=" + isFullScreen);
+                    mIsFullScreen = isFullScreen;
+                    synchronized (mSyncRoot) {
+                        scheduleTraversalLocked(false);
+                    }
+                }
+            }catch(SettingNotFoundException e){
+                Slog.e(TAG, Settings.System.BRIGHTNESS_LIGHT_MODE +" or " + Settings.System.HDMI_OUTPUT_MODE +
+                        " or " + Settings.System.BRIGHT_SYSTEM_MODE+" not found");
+            }
+
+        }
+    }
 
     public DisplayManagerService(Context context, Handler mainHandler) {
         mContext = context;
@@ -263,6 +377,10 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
         }
 
         mHandler.sendEmptyMessage(MSG_REGISTER_ADDITIONAL_DISPLAY_ADAPTERS);
+        boolean enable = false;
+        setDisplayBacklightMode(enable?1:0);
+        SettingsObserver observer = new SettingsObserver(new Handler());
+        observer.observe();
     }
 
     /**
@@ -1017,7 +1135,7 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
         }
         boolean isBlanked = (mAllDisplayBlankStateFromPowerManager == DISPLAY_BLANK_STATE_BLANKED)
                 && (info.flags & DisplayDeviceInfo.FLAG_NEVER_BLANK) == 0;
-        display.configureDisplayInTransactionLocked(device, isBlanked);
+        display.configureDisplayInTransactionLocked(device, isBlanked, mIsFullScreen);
 
         // Update the viewports if needed.
         if (!mDefaultViewport.valid
@@ -1264,5 +1382,50 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
                 binderDied();
             }
         }
+    }
+
+    @Override // Binder call
+    public int setDisplayParameter(int displaytype, int cmd, int para0, int para1, int para2) {
+        IBinder displayToken = null;
+        if( Display.TYPE_BUILT_IN == displaytype) {
+            displayToken = Surface.getBuiltInDisplay(Surface.BUILT_IN_DISPLAY_ID_MAIN);
+        } else if( Display.TYPE_HDMI == displaytype) {
+            displayToken = Surface.getBuiltInDisplay(Surface.BUILT_IN_DISPLAY_ID_HDMI);
+        }
+        if (displayToken != null) {
+            return Surface.setDisplayParameter(displayToken, cmd, para0, para1, para2);
+        } else {
+            return -1;
+        }
+    }
+
+    private int setDisplayBacklightMode(int mode)
+    {
+        return setDisplayParameter(Display.TYPE_BUILT_IN ,
+                DISPLAY_CMD_SETBACKLIGHTMODE, mode, 0, 0);
+    }
+
+    private int setDisplayBacklightDemoMode(int mode)
+    {
+        return setDisplayParameter(Display.TYPE_BUILT_IN ,
+                DISPLAY_CMD_SETBACKLIGHTDEMOMODE, mode, 0, 0);
+    }
+
+    private int setDisplayEnhanceMode(int mode)
+    {
+        return setDisplayParameter(Display.TYPE_BUILT_IN ,
+                DISPLAY_CMD_SETDISPLAYENHANCEMODE, mode, 0, 0);
+    }
+
+    private int setDisplayEnhanceDemoMode(int mode)
+    {
+        return setDisplayParameter(Display.TYPE_BUILT_IN ,
+                DISPLAY_CMD_SETDISPLAYENHANCEDEMOMODE, mode, 0, 0);
+    }
+
+    private int setHdmiOutputMode(int out_type, int out_mode)
+    {
+        return setDisplayParameter(Display.TYPE_BUILT_IN ,
+                DISPLAY_CMD_SETOUTPUTMODE, out_type, out_mode, 0);
     }
 }

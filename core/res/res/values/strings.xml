@@ -310,7 +310,8 @@
     <string name="silent_mode_vibrate">Ringer vibrate</string>
     <!-- Spoken description for ringer normal option. [CHAR LIMIT=NONE] -->
     <string name="silent_mode_ring">Ringer on</string>
-
+	<!--Shutdown Dilag Mutli Choice about quick boot mode-->
+	<string name="boot_fast_mode">The system will boot in Quick Boot Mode next time</string>
     <!-- Shutdown Progress Dialog. This is shown if the user chooses to power off the phone. -->
     <string name="shutdown_progress">Shutting down\u2026</string>
 
@@ -3924,6 +3925,8 @@
     <string name="description_target_soundon">Sound on</string>
     <!-- Description of the unlock target in the Slide unlock screen. [CHAR LIMIT=NONE] -->
     <string name="description_target_search">Search</string>
+	
+	<string name="description_target_engeltabmenu">EngelTabMenu</string>
 
     <!-- Description of the unlock handle in the Slide unlock screen for tablets. [CHAR LIMIT=NONE] -->
     <string name="description_target_unlock_tablet">Swipe to unlock.</string>
@@ -4489,4 +4492,7 @@
     <!-- Cling help message when hiding the navigation bar entering immersive mode [CHAR LIMIT=none] -->
     <string name="immersive_mode_confirmation" msgid="8554991488096662508">Swipe down from the top to exit full screen.</string>
 
+    <!-- add by dk -->
+    <string name="kg_status_time_am">AM</string>
+    <string name="kg_status_time_pm">PM</string>
 </resources>

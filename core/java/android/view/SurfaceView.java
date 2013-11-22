@@ -37,6 +37,13 @@ import android.util.Log;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.concurrent.locks.ReentrantLock;
+import android.opengl.GLSurfaceView;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.PackageManager.NameNotFoundException;
+import android.provider.Settings;
+import android.view.Display;
+import android.view.DisplayInfo;
 
 /**
  * Provides a dedicated drawing surface embedded inside of a view hierarchy.
@@ -166,6 +173,15 @@ public class SurfaceView extends View {
     boolean mReportDrawNeeded;
     private Translator mTranslator;
 
+    static int mScreenWidth = 0;
+    static int mScreenHeight = 0;
+    static int mGameSurfaceWidth =0;
+    static int mGameSurfaceHeight =0;
+    static int mScreenOrientation = -1;
+    static boolean mAdapterMode = false;
+    static public boolean mGameloftNeedCompat = false;
+    static public boolean mMotionEventMayNeedAdjust = false;
+
     private final ViewTreeObserver.OnPreDrawListener mDrawListener =
             new ViewTreeObserver.OnPreDrawListener() {
                 @Override
@@ -193,8 +209,90 @@ public class SurfaceView extends View {
         init();
     }
 
+    private void testGameloftNeedAdjust()
+    {
+        String              pckname;
+        String              substr = "gameloft";
+        ApplicationInfo     appInfo;
+        int                 index;
+        pckname = getContext().getPackageName();
+
+        //Log.d(TAG,"pckname = " + pckname);
+
+        index  = pckname.indexOf(substr);
+        if (index<=0)
+        {
+            return ;
+        }
+        PackageManager pm = getContext().getPackageManager();
+        mAdapterMode = Settings.System.getInt(getContext().getContentResolver(), Settings.System.DISPLAY_ADAPTION_ENABLE, 0) == 1;
+        try
+        {
+            appInfo = pm.getApplicationInfo(pckname, 0);
+            if (((appInfo.flags & ApplicationInfo.FLAG_SUPPORTS_XLARGE_SCREENS) != 0))
+            {
+                mGameloftNeedCompat = false;
+            }
+            else if (index >= 0 && (mAdapterMode ==true))
+            {
+                WindowManager wm = (WindowManager)getContext().getSystemService(Context.WINDOW_SERVICE);
+                Display mDisplay = wm.getDefaultDisplay();
+                DisplayInfo dispInfo = new DisplayInfo();
+                mDisplay.getDisplayInfo(dispInfo);
+                mScreenOrientation = dispInfo.rotation;
+                mScreenWidth	   = dispInfo.appWidth;
+                mScreenHeight	   = dispInfo.appHeight;
+                mGameSurfaceWidth  =800;
+                mGameSurfaceHeight =480;
+                mGameloftNeedCompat = true;
+            }
+            else
+            {
+                mGameloftNeedCompat = false;
+            }
+        } catch (NameNotFoundException e) {
+
+            mGameloftNeedCompat = false;
+        }
+
+        // Log.i(TAG, "mGameloftNeedCompat=" + mGameloftNeedCompat);
+
+    }
+
+    private void adjustWindowLayout()
+    {
+
+        if (mGameloftNeedCompat)
+        {
+            mLayout.x =  (mScreenWidth-mGameSurfaceWidth)>>1;
+            mLayout.y =  (mScreenHeight-mGameSurfaceHeight)>>1;
+            mLayout.width = mGameSurfaceWidth;
+            mLayout.height = mGameSurfaceHeight;
+        }
+    }
+
+
+    public static void adjustSurfaceViewMotion(MotionEvent evt)
+    {
+        if (mMotionEventMayNeedAdjust == false)
+        {
+            return ;
+        }
+        else
+        {
+            int offx = (mGameSurfaceWidth-mScreenWidth)>>1;
+            int offy = (mGameSurfaceHeight-mScreenHeight)>>1;
+            evt.offsetLocation(offx,offy);
+        }
+    }
+
     private void init() {
         setWillNotDraw(true);
+        mMotionEventMayNeedAdjust =false;
+        if (this instanceof GLSurfaceView)
+        {
+            testGameloftNeedAdjust();
+        }
     }
 
     /**
@@ -428,7 +526,8 @@ public class SurfaceView extends View {
         if (mTranslator != null) {
             mSurface.setCompatibilityTranslator(mTranslator);
         }
-
+        
+        testGameloftNeedAdjust();
         int myWidth = mRequestedWidth;
         if (myWidth <= 0) myWidth = getWidth();
         int myHeight = mRequestedHeight;
@@ -465,6 +564,7 @@ public class SurfaceView extends View {
                 mLayout.y = mTop;
                 mLayout.width = getWidth();
                 mLayout.height = getHeight();
+                adjustWindowLayout();
                 if (mTranslator != null) {
                     mTranslator.translateLayoutParamsInAppWindowToScreen(mLayout);
                 }
@@ -506,12 +606,24 @@ public class SurfaceView extends View {
 
                     if (DEBUG) Log.i(TAG, "Cur surface: " + mSurface);
 
-                    relayoutResult = mSession.relayout(
-                        mWindow, mWindow.mSeq, mLayout, mWidth, mHeight,
-                            visible ? VISIBLE : GONE,
-                            WindowManagerGlobal.RELAYOUT_DEFER_SURFACE_DESTROY,
-                            mWinFrame, mOverscanInsets, mContentInsets,
-                            mVisibleInsets, mConfiguration, mNewSurface);
+					if(mGameloftNeedCompat)
+                    {
+                        relayoutResult = mSession.relayout(
+                                mWindow, mWindow.mSeq, mLayout, 800,480,
+                                visible ? VISIBLE : GONE,
+                                        WindowManagerGlobal.RELAYOUT_DEFER_SURFACE_DESTROY,
+                                        mWinFrame, mContentInsets,
+                                        mVisibleInsets, mConfiguration, mNewSurface);
+                    }
+                    else
+                    {
+                        relayoutResult = mSession.relayout(
+                                mWindow, mWindow.mSeq, mLayout, mWidth, mHeight,
+                                visible ? VISIBLE : GONE,
+                                        WindowManagerGlobal.RELAYOUT_DEFER_SURFACE_DESTROY,
+                                        mWinFrame, mContentInsets,
+                                        mVisibleInsets, mConfiguration, mNewSurface);
+                    }
                     if ((relayoutResult & WindowManagerGlobal.RELAYOUT_RES_FIRST_TIME) != 0) {
                         mReportDrawNeeded = true;
                     }

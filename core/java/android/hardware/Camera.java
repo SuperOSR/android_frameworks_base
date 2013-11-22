@@ -41,6 +41,7 @@ import android.text.TextUtils;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 
+import java.io.FileDescriptor;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -150,6 +151,10 @@ public class Camera {
     private static final int CAMERA_MSG_RAW_IMAGE_NOTIFY = 0x200;
     private static final int CAMERA_MSG_PREVIEW_METADATA = 0x400;
     private static final int CAMERA_MSG_FOCUS_MOVE       = 0x800;
+	private static final int CAMERA_MSG_CONTINUOUSSNAP   = 0x1000;   //for continuous snap by fuqiang
+	private static final int CAMERA_MSG_SNAP             = 0x2000;   //for single snap by fuqiang
+	private static final int CAMERA_MSG_SNAP_THUMB       = 0x4000;   //for single snap by fuqiang
+	private static final int CAMERA_MSG_SNAP_FD       = 0x8000;   //for single and continuous snap by fuqiang
 
     private int mNativeContext; // accessed by native methods
     private EventHandler mEventHandler;
@@ -162,6 +167,10 @@ public class Camera {
     private AutoFocusCallback mAutoFocusCallback;
     private AutoFocusMoveCallback mAutoFocusMoveCallback;
     private OnZoomChangeListener mZoomListener;
+	private OnContinuousSnapChangeListener mContinuousSnapListener;
+	private OnSingleSnapChangeListener mSingleSnapListener;
+	private OnSingleSnapThumbChangeListener mSingleSnapThumbListener;
+	private OnSnapFdChangeListener mSnapFdListener;
     private FaceDetectionListener mFaceListener;
     private ErrorCallback mErrorCallback;
     private boolean mOneShot;
@@ -978,6 +987,34 @@ public class Camera {
                 }
                 return;
 
+			//this handles the continuoussnap message by fuqiang
+			//*******************************************************************************
+			case CAMERA_MSG_CONTINUOUSSNAP:   
+				if(mContinuousSnapListener != null) {
+					mContinuousSnapListener.onContinuousSnapChange(msg.arg1, msg.arg2 != 0, mCamera);
+				}
+				return;
+			//*******************************************************************************
+
+			//this handles the single snap message by fuqiang
+			//*******************************************************************************
+			case CAMERA_MSG_SNAP:   
+				if(mSingleSnapListener != null) {
+					mSingleSnapListener.onSingleSnapChange();
+				}
+				return;
+			case CAMERA_MSG_SNAP_THUMB:
+				if(mSingleSnapThumbListener != null) {
+					mSingleSnapThumbListener.onSingleSnapThumbChange((byte [])msg.obj, mCamera);
+				}
+				return;
+			case CAMERA_MSG_SNAP_FD:
+				if(mSnapFdListener != null) {
+					mSnapFdListener.onSnapFdChange((byte [])msg.obj, mCamera);
+				}
+				return;
+			//*******************************************************************************
+
             default:
                 Log.e(TAG, "Unknown message type " + msg.what);
                 return;
@@ -1144,6 +1181,17 @@ public class Camera {
     }
 
     private native void enableFocusMoveCallback(int enable);
+
+	 /**
+     * set file descriptor to camera HAL.
+     * add for r/w file in the HAL of android 4.2
+     * by fuqiang.
+     */
+    public void setFd(FileDescriptor filedescriptor) {
+        setFD(filedescriptor);
+    }
+
+    private native void setFD(FileDescriptor filedescriptor);
 
     /**
      * Callback interface used to signal the moment of actual image capture.
@@ -1387,6 +1435,50 @@ public class Camera {
          */
         void onZoomChange(int zoomValue, boolean stopped, Camera camera);
     };
+	
+
+	//add interface for continuous snap by fuqiang
+	//***************************************************************************
+	public interface OnContinuousSnapChangeListener
+	{
+		/*Called when the continuous snap callback in the continuous mode.
+		*
+		*@param value the number of the callback picture.
+		*
+		*@param stoped whether continuous snap is stopped. If the value is true, this is the last callback.
+		*
+		*@param camera the Camera service object.
+		*/
+		void onContinuousSnapChange(int value, boolean stopped, Camera camera);
+	};
+	//***************************************************************************
+
+	//add interface for single snap by fuqiang
+	//***************************************************************************
+	public interface OnSingleSnapChangeListener
+	{
+		/*Called when the continuous snap callback in the continuous mode.
+		*
+		*@param value the number of the callback picture.
+		*
+		*@param stoped whether continuous snap is stopped. If the value is true, this is the last callback.
+		*
+		*@param camera the Camera service object.
+		*/
+		void onSingleSnapChange();
+	};
+	
+	public interface OnSingleSnapThumbChangeListener
+	{
+		void onSingleSnapThumbChange(byte[] data, Camera camera);
+	};
+	
+	public interface OnSnapFdChangeListener
+	{
+		void onSnapFdChange(byte[] data, Camera camera);
+	};
+	//***************************************************************************
+	
 
     /**
      * Registers a listener to be notified when the zoom value is updated by the
@@ -1399,6 +1491,43 @@ public class Camera {
     {
         mZoomListener = listener;
     }
+	
+
+	//for continuous snap by fuqiang
+	//*****************************************************************************************
+	/*
+	*Registers a listener to be notified when the continuous snap callback by the camera HAL.
+	*
+	*@param listener the listener to notify
+	*/
+	public final void setContinuousSnapChangeListener(OnContinuousSnapChangeListener listener)
+	{
+		mContinuousSnapListener = listener;
+	}
+	//*****************************************************************************************
+
+	//for single snap by fuqiang
+	//*****************************************************************************************
+	/*
+	*Registers a listener to be notified when the single snap callback by the camera HAL.
+	*
+	*@param listener the listener to notify
+	*/
+	public final void setSingleSnapChangeListener(OnSingleSnapChangeListener listener)
+	{
+		mSingleSnapListener = listener;
+	}
+	public final void setSingleSnapThumbChangeListener(OnSingleSnapThumbChangeListener listener)
+	{
+		mSingleSnapThumbListener = listener;
+	}
+
+	public final void setSnapFdChangeListener(OnSnapFdChangeListener listener)
+	{
+		mSnapFdListener = listener;
+	}
+	//*****************************************************************************************
+	
 
     /**
      * Callback interface for face detected in the preview frame.

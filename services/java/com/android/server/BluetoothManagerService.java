@@ -44,6 +44,8 @@ import android.os.SystemClock;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
+import java.lang.Thread;
+
 class BluetoothManagerService extends IBluetoothManager.Stub {
     private static final String TAG = "BluetoothManagerService";
     private static final boolean DBG = true;
@@ -216,7 +218,23 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
         loadStoredNameAndAddress();
         if (isBluetoothPersistedStateOn()) {
             mEnableExternal = true;
-        }
+        } else {//Realtek add start
+            //Enable
+            Message msg1 = mHandler.obtainMessage(MESSAGE_ENABLE);
+            msg1.arg1=0; //No persist
+            msg1.arg2=1; //Quiet mode
+            mHandler.sendMessage(msg1);
+            
+            try {
+                Thread.sleep(2000); //add delay to make sure BT is enabled
+            } catch (Exception e) {}
+ 
+            //Disable
+            Message msg2 = mHandler.obtainMessage(MESSAGE_DISABLE);
+            msg2.arg1=0;
+            mHandler.sendMessage(msg2);
+       }
+       //Realtek add end
     }
 
     /**

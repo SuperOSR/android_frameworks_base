@@ -1087,6 +1087,7 @@
   <java-symbol type="drawable" name="unlock_ring" />
   <java-symbol type="drawable" name="unlock_wave" />
   <java-symbol type="drawable" name="ic_action_assist_generic" />
+  <java-symbol type="drawable" name="ic_lockscreen_engeltabmenu" />
   <java-symbol type="drawable" name="notification_bg" />
   <java-symbol type="drawable" name="notification_bg_low" />
   <java-symbol type="drawable" name="notification_template_icon_bg" />
@@ -1498,6 +1499,8 @@
   <java-symbol type="integer" name="config_shutdownBatteryTemperature" />
   <java-symbol type="integer" name="config_undockedHdmiRotation" />
   <java-symbol type="integer" name="config_virtualKeyQuietTimeMillis" />
+  <java-symbol type="string" name="config_default_windowAnimationScale" />
+  <java-symbol type="string" name="config_default_transitionAnimationScale" />
   <java-symbol type="layout" name="am_compat_mode_dialog" />
   <java-symbol type="layout" name="launch_warning" />
   <java-symbol type="layout" name="safe_mode" />
@@ -1718,6 +1721,7 @@
   <java-symbol type="drawable" name="stat_notify_sim_toolkit" />
   <java-symbol type="bool" name="config_stkNoAlphaUsrCnf" />
 
+  <java-symbol type="array" name="quick_boot_mode" />
   <!-- From maps library -->
   <java-symbol type="array" name="maps_starting_lat_lng" />
   <java-symbol type="array" name="maps_starting_zoom" />
@@ -1735,6 +1739,11 @@
 
   <!-- From PinyinIME(!!!) -->
   <java-symbol type="string" name="inputMethod" />
+  
+  <!-- add by dk -->
+  <java-symbol type="string" name="kg_status_time_am" />
+  <java-symbol type="string" name="kg_status_time_pm" />
+  <java-symbol type="dimen" name="kg_status_am_pm_font_size" />
 
   <!-- From Chromium-WebView -->
   <java-symbol type="attr" name="actionModeWebSearchDrawable" />
