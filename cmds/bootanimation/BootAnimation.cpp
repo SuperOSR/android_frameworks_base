@@ -85,6 +85,7 @@ sp<SurfaceComposerClient> BootAnimation::session() const {
     return mSession;
 }
 
+#ifdef TARGET_BOARD_FIBER
 void BootAnimation::playBootMusic(const char* url)
 {
     int index = 7;
@@ -104,6 +105,7 @@ void BootAnimation::playBootMusic(const char* url)
         }
     }
 }
+#endif
 
 void BootAnimation::binderDied(const wp<IBinder>& who)
 {

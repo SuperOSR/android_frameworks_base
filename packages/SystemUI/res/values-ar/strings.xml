@@ -200,4 +200,8 @@
     <string name="quick_settings_brightness_dialog_title" msgid="8599674057673605368">"السطوع"</string>
     <string name="quick_settings_brightness_dialog_auto_brightness_label" msgid="5064982743784071218">"تلقائي"</string>
     <string name="ssl_ca_cert_warning" msgid="9005954106902053641">"قد تكون الشبكة\nخاضعة للرقابة"</string>
+    <string name="status_bar_help_title" msgid="1199237744086469217">"تظهر الإشعارات هنا"</string>
+    <string name="status_bar_help_text" msgid="7874607155052076323">"يمكنك الدخول إليها في أي وقت بالتمرير السريع إلى أسفل.\nيمكنك التمرير السريع إلى أسفل مرة أخرى للوصول إلى عناصر تحكم النظام."</string>
+    <string name="hideybar_confirmation_message" msgid="9050869548951044371">"مرر سريعًا لحافة الشاشة لإظهار الشريط"</string>
+    <string name="hideybar_confirmation_message_long" msgid="7117692795163620626">"مرر سريعًا من حافة الشاشة لإظهار شريط النظام"</string>
 </resources>

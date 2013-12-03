@@ -322,7 +322,7 @@ public final class BluetoothDevice implements Parcelable {
 
     /**
      * Broadcast Action: This intent is used to broadcast PAIRING REQUEST
-     * <p>Requires {@link android.Manifest.permission#BLUETOOTH_ADMIN} to
+     * <p>Requires {@link android.Manifest.permission#BLUETOOTH_PRIVILEGED} to
      * receive.
      */
     @SdkConstant(SdkConstantType.BROADCAST_INTENT_ACTION)
@@ -465,7 +465,7 @@ public final class BluetoothDevice implements Parcelable {
 
     /**
      * The user will be prompted to enter a pin or
-     * an app will enter a pin for user.
+     * a privileged app will enter a pin for user.
      */
     public static final int PAIRING_VARIANT_PIN = 0;
 
@@ -477,7 +477,7 @@ public final class BluetoothDevice implements Parcelable {
 
     /**
      * The user will be prompted to confirm the passkey displayed on the screen or
-     * an app will confirm the passkey for the user.
+     * a privileged app will confirm the passkey for the user.
      */
     public static final int PAIRING_VARIANT_PASSKEY_CONFIRMATION = 2;
 
@@ -725,7 +725,7 @@ public final class BluetoothDevice implements Parcelable {
      * the bonding process completes, and its result.
      * <p>Android system services will handle the necessary user interactions
      * to confirm and complete the bonding process.
-     * <p>Requires {@link android.Manifest.permission#BLUETOOTH_ADMIN}.
+     * <p>Requires {@link android.Manifest.permission#BLUETOOTH_PRIVILEGED}.
      *
      * @return false on immediate error, true if bonding will begin
      */
@@ -965,7 +965,7 @@ public final class BluetoothDevice implements Parcelable {
 
     /**
      * Set the pin during pairing when the pairing method is {@link #PAIRING_VARIANT_PIN}
-     * <p>Requires {@link android.Manifest.permission#BLUETOOTH_ADMIN}.
+     * <p>Requires {@link android.Manifest.permission#BLUETOOTH_PRIVILEGED}.
      *
      * @return true pin has been set
      *         false for error
@@ -993,7 +993,7 @@ public final class BluetoothDevice implements Parcelable {
 
     /**
      * Confirm passkey for {@link #PAIRING_VARIANT_PASSKEY_CONFIRMATION} pairing.
-     * <p>Requires {@link android.Manifest.permission#BLUETOOTH_ADMIN}.
+     * <p>Requires {@link android.Manifest.permission#BLUETOOTH_PRIVILEGED}.
      *
      * @return true confirmation has been sent out
      *         false for error

@@ -370,4 +370,8 @@
     <skip />
     <!-- no translation found for ssl_ca_cert_warning (9005954106902053641) -->
     <skip />
+    <!-- no translation found for hideybar_confirmation_message (9050869548951044371) -->
+    <skip />
+    <!-- no translation found for hideybar_confirmation_message_long (7117692795163620626) -->
+    <skip />
 </resources>

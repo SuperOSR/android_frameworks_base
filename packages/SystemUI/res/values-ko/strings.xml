@@ -200,4 +200,8 @@
     <string name="quick_settings_brightness_dialog_title" msgid="8599674057673605368">"밝기"</string>
     <string name="quick_settings_brightness_dialog_auto_brightness_label" msgid="5064982743784071218">"자동"</string>
     <string name="ssl_ca_cert_warning" msgid="9005954106902053641">"네트워크가\n모니터링될 수 있음"</string>
+    <string name="status_bar_help_title" msgid="1199237744086469217">"알림이 여기에 표시됨"</string>
+    <string name="status_bar_help_text" msgid="7874607155052076323">"아래로 스와이프하여 언제든 액세스하세요.\n한 번 더 아래로 스와이프하면 시스템 관리로 이동합니다."</string>
+    <string name="hideybar_confirmation_message" msgid="9050869548951044371">"화면 가장자리에서 스와이프하여 표시줄 표시"</string>
+    <string name="hideybar_confirmation_message_long" msgid="7117692795163620626">"화면 가장자리에서 스와이프하여 시스템 표시줄 표시"</string>
 </resources>

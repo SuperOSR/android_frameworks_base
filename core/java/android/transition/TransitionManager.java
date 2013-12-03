@@ -81,8 +81,6 @@ public class TransitionManager {
      * an {@link AutoTransition} instance.
      *
      * @param transition The default transition to be used for scene changes.
-     *
-     * @hide pending later changes
      */
     public void setDefaultTransition(Transition transition) {
         sDefaultTransition = transition;
@@ -94,8 +92,6 @@ public class TransitionManager {
      *
      * @return The current default transition.
      * @see #setDefaultTransition(Transition)
-     *
-     * @hide pending later changes
      */
     public static Transition getDefaultTransition() {
         return sDefaultTransition;
@@ -108,7 +104,7 @@ public class TransitionManager {
      * transition to run.
      * @param transition The transition that will play when the given scene is
      * entered. A value of null will result in the default behavior of
-     * using the default transition instead.
+     * using the {@link #getDefaultTransition() default transition} instead.
      */
     public void setTransition(Scene scene, Transition transition) {
         mSceneTransitions.put(scene, transition);
@@ -124,7 +120,7 @@ public class TransitionManager {
      * be run
      * @param transition The transition that will play when the given scene is
      * entered. A value of null will result in the default behavior of
-     * using the default transition instead.
+     * using the {@link #getDefaultTransition() default transition} instead.
      */
     public void setTransition(Scene fromScene, Scene toScene, Transition transition) {
         ArrayMap<Scene, Transition> sceneTransitionMap = mScenePairTransitions.get(toScene);
@@ -142,8 +138,8 @@ public class TransitionManager {
      *
      * @param scene The scene being entered
      * @return The Transition to be used for the given scene change. If no
-     * Transition was specified for this scene change, the default transition
-     * will be used instead.
+     * Transition was specified for this scene change, the {@link #getDefaultTransition()
+     * default transition} will be used instead.
      */
     private Transition getTransition(Scene scene) {
         Transition transition = null;

@@ -1125,13 +1125,7 @@ public class WifiP2pService extends IWifiP2pManager.Stub {
                     break;
                 case SET_COUNTRY_CODE:
                     String countryCode = (String) message.obj;
-                    countryCode = countryCode.toUpperCase(Locale.ROOT);
-                    if (mLastSetCountryCode == null ||
-                            countryCode.equals(mLastSetCountryCode) == false) {
-                        if (mWifiNative.setCountryCode(countryCode)) {
-                            mLastSetCountryCode = countryCode;
-                        }
-                    }
+                    mWifiNative.setCountryCode(countryCode);
                     break;
                 default:
                    return NOT_HANDLED;

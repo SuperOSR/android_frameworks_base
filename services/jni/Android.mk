@@ -18,7 +18,6 @@ LOCAL_SRC_FILES:= \
     com_android_server_location_GpsLocationProvider.cpp \
     com_android_server_location_FlpHardwareProvider.cpp \
     com_android_server_connectivity_Vpn.cpp \
-    com_android_server_ActivityManagerService.cpp \
     onload.cpp
 
 LOCAL_C_INCLUDES += \
@@ -50,9 +49,14 @@ LOCAL_SHARED_LIBRARIES := \
     libgui \
     libusbhost \
     libsuspend \
-    libcheckfile \
     libEGL \
     libGLESv2
+
+ifeq ($(TARGET_BOARD_PLATFORM), fiber)
+    LOCAL_SRC_FILES += com_android_server_ActivityManagerService.cpp
+    LOCAL_CFLAGS += -DTARGET_BOARD_FIBER
+    LOCAL_SHARED_LIBRARIES += libcheckfile
+endif
 
 LOCAL_CFLAGS += -DEGL_EGLEXT_PROTOTYPES -DGL_GLEXT_PROTOTYPES
 

@@ -29,7 +29,7 @@
     <string name="keyguard_password_enter_pin_password_code" msgid="6391755146112503443">"הקלד קוד PIN לביטול הנעילה"</string>
     <string name="keyguard_password_wrong_pin_code" msgid="2422225591006134936">"קוד PIN שגוי"</string>
     <string name="keyguard_label_text" msgid="861796461028298424">"כדי לבטל את הנעילה, לחץ על \'תפריט\' ולאחר מכן על 0."</string>
-    <string name="faceunlock_multiple_failures" msgid="754137583022792429">"חרגת ממספר הניסיונות המרבי של זיהוי פנים"</string>
+    <string name="faceunlock_multiple_failures" msgid="754137583022792429">"חרגת ממספר הניסיונות המרבי של זיהוי פרצוף"</string>
     <string name="keyguard_charged" msgid="3272223906073492454">"טעון"</string>
     <string name="keyguard_plugged_in" msgid="8117572000639998388">"טוען, <xliff:g id="NUMBER">%d</xliff:g><xliff:g id="PERCENT">%%</xliff:g>"</string>
     <string name="keyguard_low_battery" msgid="8143808018719173859">"חבר את המטען."</string>
@@ -61,7 +61,7 @@
     <string name="keyguard_accessibility_expand_lock_area" msgid="519859720934178024">"הרחב את אזור ביטול הנעילה."</string>
     <string name="keyguard_accessibility_slide_unlock" msgid="2959928478764697254">"ביטול נעילה באמצעות הסטה."</string>
     <string name="keyguard_accessibility_pattern_unlock" msgid="1490840706075246612">"ביטול נעילה באמצעות ציור קו."</string>
-    <string name="keyguard_accessibility_face_unlock" msgid="4817282543351718535">"ביטול נעילה באמצעות זיהוי פנים."</string>
+    <string name="keyguard_accessibility_face_unlock" msgid="4817282543351718535">"ביטול נעילה באמצעות זיהוי פרצוף."</string>
     <string name="keyguard_accessibility_pin_unlock" msgid="2469687111784035046">"ביטול נעילה באמצעות מספר PIN."</string>
     <string name="keyguard_accessibility_password_unlock" msgid="7675777623912155089">"ביטול נעילה באמצעות סיסמה."</string>
     <string name="keyguard_accessibility_pattern_area" msgid="7679891324509597904">"אזור ציור קו."</string>
@@ -71,13 +71,6 @@
     <string name="keyguard_accessibility_transport_pause_description" msgid="8455979545295224302">"לחצן \'השהה\'"</string>
     <string name="keyguard_accessibility_transport_play_description" msgid="8146417789511154044">"לחצן \'הפעל\'"</string>
     <string name="keyguard_accessibility_transport_stop_description" msgid="7656358482980912216">"לחצן \'הפסק\'"</string>
-    <string name="keyguard_accessibility_transport_thumbs_up_description" msgid="4535938129663903194">"אהבתי"</string>
-    <string name="keyguard_accessibility_transport_thumbs_down_description" msgid="8101433677192177861">"לא אהבתי"</string>
-    <string name="keyguard_accessibility_transport_heart_description" msgid="2336943232474689887">"לב"</string>
-    <string name="keyguard_accessibility_show_bouncer" msgid="5425837272418176176">"בטל נעילה כדי להמשיך"</string>
-    <string name="keyguard_accessibility_hide_bouncer" msgid="7896992171878309358">"ההפעלה בוטלה"</string>
-    <string name="keyguard_accessibility_delete_widget_start" msgid="4096550552634391451">"שחרר את <xliff:g id="WIDGET_INDEX">%1$s</xliff:g> למחיקה."</string>
-    <string name="keyguard_accessibility_delete_widget_end" msgid="508833506780909393">"<xliff:g id="WIDGET_INDEX">%1$s</xliff:g> לא יימחק."</string>
     <string name="password_keyboard_label_symbol_key" msgid="992280756256536042">"?123"</string>
     <string name="password_keyboard_label_alpha_key" msgid="8001096175167485649">"אבג"</string>
     <string name="password_keyboard_label_alt_key" msgid="1284820942620288678">"ALT"</string>

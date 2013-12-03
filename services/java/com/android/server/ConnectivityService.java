@@ -50,7 +50,7 @@ import android.database.ContentObserver;
 import android.net.CaptivePortalTracker;
 import android.net.ConnectivityManager;
 import android.net.DummyDataStateTracker;
-import android.net.ethernet.EthernetDataTracker;
+import android.net.EthernetDataTracker;
 import android.net.IConnectivityManager;
 import android.net.INetworkManagementEventObserver;
 import android.net.INetworkPolicyListener;
@@ -1561,9 +1561,12 @@ public class ConnectivityService extends IConnectivityManager.Stub {
             return false;
         }
         NetworkStateTracker tracker = mNetTrackers[networkType];
-        DetailedState netState = tracker.getNetworkInfo().getDetailedState();
+        DetailedState netState = DetailedState.DISCONNECTED;
+        if (tracker != null) {
+            netState = tracker.getNetworkInfo().getDetailedState();
+        }
 
-        if (tracker == null || (netState != DetailedState.CONNECTED &&
+        if ((netState != DetailedState.CONNECTED &&
                 netState != DetailedState.CAPTIVE_PORTAL_CHECK) ||
                 tracker.isTeardownRequested()) {
             if (VDBG) {
@@ -3383,6 +3386,11 @@ public class ConnectivityService extends IConnectivityManager.Stub {
             String pacFileUrl = "";
             if (proxyProperties != null && (!TextUtils.isEmpty(proxyProperties.getHost()) ||
                     !TextUtils.isEmpty(proxyProperties.getPacFileUrl()))) {
+                if (!proxyProperties.isValid()) {
+                    if (DBG)
+                        log("Invalid proxy properties, ignoring: " + proxyProperties.toString());
+                    return;
+                }
                 mGlobalProxy = new ProxyProperties(proxyProperties);
                 host = mGlobalProxy.getHost();
                 port = mGlobalProxy.getPort();
@@ -3426,6 +3434,11 @@ public class ConnectivityService extends IConnectivityManager.Stub {
             } else {
                 proxyProperties = new ProxyProperties(host, port, exclList);
             }
+            if (!proxyProperties.isValid()) {
+                if (DBG) log("Invalid proxy properties, ignoring: " + proxyProperties.toString());
+                return;
+            }
+
             synchronized (mProxyLock) {
                 mGlobalProxy = proxyProperties;
             }
@@ -3450,6 +3463,10 @@ public class ConnectivityService extends IConnectivityManager.Stub {
         synchronized (mProxyLock) {
             if (mDefaultProxy != null && mDefaultProxy.equals(proxy)) return;
             if (mDefaultProxy == proxy) return; // catches repeated nulls
+            if (!proxy.isValid()) {
+                if (DBG) log("Invalid proxy properties, ignoring: " + proxy.toString());
+                return;
+            }
             mDefaultProxy = proxy;
 
             if (mGlobalProxy != null) return;
@@ -4476,9 +4493,8 @@ public class ConnectivityService extends IConnectivityManager.Stub {
             mdst.enableMobileProvisioning(url);
         } else {
             if (DBG) log("handleMobileProvisioningAction: on default network");
-            Intent newIntent = Intent.makeMainSelectorActivity(Intent.ACTION_MAIN,
-                    Intent.CATEGORY_APP_BROWSER);
-            newIntent.setData(Uri.parse(url));
+            Intent newIntent =
+                    new Intent(Intent.ACTION_VIEW, Uri.parse(url));
             newIntent.setFlags(Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT |
                     Intent.FLAG_ACTIVITY_NEW_TASK);
             try {

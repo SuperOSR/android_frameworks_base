@@ -55,6 +55,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.Signature;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.pm.ResolveInfo;
+import android.net.ProxyProperties;
 import android.content.pm.UserInfo;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -2463,6 +2464,12 @@ public class DevicePolicyManagerService extends IDevicePolicyManager.Stub {
         }
         exclusionList = exclusionList.trim();
         ContentResolver res = mContext.getContentResolver();
+
+        ProxyProperties proxyProperties = new ProxyProperties(data[0], proxyPort, exclusionList);
+        if (!proxyProperties.isValid()) {
+            Slog.e(TAG, "Invalid proxy properties, ignoring: " + proxyProperties.toString());
+            return;
+        }
         Settings.Global.putString(res, Settings.Global.GLOBAL_HTTP_PROXY_HOST, data[0]);
         Settings.Global.putInt(res, Settings.Global.GLOBAL_HTTP_PROXY_PORT, proxyPort);
         Settings.Global.putString(res, Settings.Global.GLOBAL_HTTP_PROXY_EXCLUSION_LIST,

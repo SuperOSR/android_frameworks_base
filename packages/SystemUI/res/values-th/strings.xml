@@ -200,4 +200,8 @@
     <string name="quick_settings_brightness_dialog_title" msgid="8599674057673605368">"ความสว่าง"</string>
     <string name="quick_settings_brightness_dialog_auto_brightness_label" msgid="5064982743784071218">"อัตโนมัติ"</string>
     <string name="ssl_ca_cert_warning" msgid="9005954106902053641">"เครือข่ายอาจ\nถูกตรวจสอบ"</string>
+    <string name="status_bar_help_title" msgid="1199237744086469217">"การแจ้งเตือนจะแสดงขึ้นที่นี่"</string>
+    <string name="status_bar_help_text" msgid="7874607155052076323">"เข้าถึงได้ทุกเมื่อด้วยการกวาดนิ้วลง\nกวาดนิ้วลงอีกครั้งสำหรับการควบคุมระบบ"</string>
+    <string name="hideybar_confirmation_message" msgid="9050869548951044371">"กวาดขอบของหน้าจอเพื่อแสดงแถบ"</string>
+    <string name="hideybar_confirmation_message_long" msgid="7117692795163620626">"กวาดจากขอบของหน้าจอเพื่อแสดงแถบระบบ"</string>
 </resources>
