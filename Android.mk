@@ -270,7 +270,6 @@ LOCAL_SRC_FILES += \
 
 ifeq ($(TARGET_BOARD_PLATFORM), fiber)
 	LOCAL_SRC_FILES += \
-		ethernet/java/android/net/ethernet/IEthernetManager.aidl \
 		core/java/android/os/IDynamicPManager.aidl
 endif
 
