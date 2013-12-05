@@ -1207,7 +1207,6 @@
     <!-- Flag indicating if the speed up audio on mt call code should be executed -->
     <bool name="config_speed_up_audio_on_mt_calls">false</bool>
     
-1
      <!-- Package name providing geocoder API support. -->
     <string name="config_geocodeProviderPackageName" translatable="false">com.google.android.location</string>
     
