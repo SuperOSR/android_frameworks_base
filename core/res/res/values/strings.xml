@@ -3926,8 +3926,6 @@
     <!-- Description of the unlock target in the Slide unlock screen. [CHAR LIMIT=NONE] -->
     <string name="description_target_search">Search</string>
 	
-	<string name="description_target_engeltabmenu">EngelTabMenu</string>
-
     <!-- Description of the unlock handle in the Slide unlock screen for tablets. [CHAR LIMIT=NONE] -->
     <string name="description_target_unlock_tablet">Swipe to unlock.</string>
 
