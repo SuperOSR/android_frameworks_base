@@ -14,23 +14,4 @@
      limitations under the License.
 -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-
-    <item
-        android:state_enabled="true"
-        android:state_active="false"
-        android:state_focused="false"
-        android:drawable="@drawable/ic_launcher" />
-
-    <item
-        android:state_enabled="true"
-        android:state_active="true"
-        android:state_focused="false"
-        android:drawable="@drawable/ic_launcher" />
-
-    <item
-        android:state_enabled="true"
-        android:state_active="false"
-        android:state_focused="true"
-        android:drawable="@drawable/ic_launcher" />
-
 </selector>
