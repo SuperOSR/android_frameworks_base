@@ -221,6 +221,14 @@ public class PackageManagerService extends IPackageManager.Stub {
     static final int REMOVE_CHATTY = 1<<16;
 
     /**
+     * Timeout (in milliseconds) after which the watchdog should declare that
+     * our handler thread is wedged.  The usual default for such things is one
+     * minute but we sometimes do very lengthy I/O operations on this thread,
+     * such as installing multi-gigabyte applications, so ours needs to be longer.
+     */
+    private static final long WATCHDOG_TIMEOUT = 1000*60*10;     // ten minutes
+
+    /**
      * Whether verification is enabled by default.
      */
     private static final boolean DEFAULT_VERIFY_ENABLE = true;
@@ -1115,7 +1123,8 @@ public class PackageManagerService extends IPackageManager.Stub {
         synchronized (mPackages) {
             mHandlerThread.start();
             mHandler = new PackageHandler(mHandlerThread.getLooper());
-            Watchdog.getInstance().addThread(mHandler, mHandlerThread.getName());
+            Watchdog.getInstance().addThread(mHandler, mHandlerThread.getName(),
+                    WATCHDOG_TIMEOUT);
 
             File dataDir = Environment.getDataDirectory();
             mAppDataDir = new File(dataDir, "data");
@@ -1269,7 +1278,8 @@ public class PackageManagerService extends IPackageManager.Stub {
                 frameworkDir.getPath(), OBSERVER_EVENTS, true, false);
             mFrameworkInstallObserver.startWatching();
             scanDirLI(frameworkDir, PackageParser.PARSE_IS_SYSTEM
-                    | PackageParser.PARSE_IS_SYSTEM_DIR,
+                    | PackageParser.PARSE_IS_SYSTEM_DIR
+                    | PackageParser.PARSE_IS_PRIVILEGED,
                     scanMode | SCAN_NO_DEX, 0);
 
             // Collected privileged system packages.
@@ -1760,6 +1770,24 @@ public class PackageManagerService extends IPackageManager.Stub {
         return PackageParser.generatePackageInfo(p, gp.gids, flags,
                 ps.firstInstallTime, ps.lastUpdateTime, gp.grantedPermissions,
                 state, userId);
+    }
+
+    public boolean isPackageAvailable(String packageName, int userId) {
+        if (!sUserManager.exists(userId)) return false;
+        enforceCrossUserPermission(Binder.getCallingUid(), userId, false, "is package available");
+        synchronized (mPackages) {
+            PackageParser.Package p = mPackages.get(packageName);
+            if (p != null) {
+                final PackageSetting ps = (PackageSetting) p.mExtras;
+                if (ps != null) {
+                    final PackageUserState state = ps.readUserState(userId);
+                    if (state != null) {
+                        return PackageParser.isAvailable(state);
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     @Override
@@ -3585,7 +3613,13 @@ public class PackageManagerService extends IPackageManager.Stub {
                                 + ps.name + " changing from " + updatedPkg.codePathString
                                 + " to " + scanFile);
                         updatedPkg.codePath = scanFile;
-                        updatedPkg.codePathString = scanFile.toString();                        
+                        updatedPkg.codePathString = scanFile.toString();
+                        // This is the point at which we know that the system-disk APK
+                        // for this package has moved during a reboot (e.g. due to an OTA),
+                        // so we need to reevaluate it for privilege policy.
+                        if (locationIsPrivileged(scanFile)) {
+                            updatedPkg.pkgFlags |= ApplicationInfo.FLAG_PRIVILEGED;
+                        }
                     }
                     updatedPkg.pkg = pkg;
                     mLastScanError = PackageManager.INSTALL_FAILED_DUPLICATE_PACKAGE;
@@ -3959,7 +3993,7 @@ public class PackageManagerService extends IPackageManager.Stub {
         for (int user : users) {
             if (user != 0) {
                 res = mInstaller.createUserData(packageName,
-                        UserHandle.getUid(user, uid), user, seinfo);
+                        UserHandle.getUid(user, uid), user);
                 if (res < 0) {
                     return res;
                 }
@@ -4944,6 +4978,18 @@ public class PackageManagerService extends IPackageManager.Stub {
                         permissionMap.put(p.info.name, bp);
                     }
                     if (bp.perm == null) {
+                        if (bp.sourcePackage != null
+                                && !bp.sourcePackage.equals(p.info.packageName)) {
+                            // If this is a permission that was formerly defined by a non-system
+                            // app, but is now defined by a system app (following an upgrade),
+                            // discard the previous declaration and consider the system's to be
+                            // canonical.
+                            if (isSystemApp(p.owner)) {
+                                Slog.i(TAG, "New decl " + p.owner + " of permission  "
+                                        + p.info.name + " is system");
+                                bp.sourcePackage = null;
+                            }
+                        }
                         if (bp.sourcePackage == null
                                 || bp.sourcePackage.equals(p.info.packageName)) {
                             BasePermission tree = findPermissionTreeLP(p.info.name);
@@ -5545,10 +5591,6 @@ public class PackageManagerService extends IPackageManager.Stub {
                         == PackageManager.SIGNATURE_MATCH)
                 || (compareSignatures(mPlatformPackage.mSignatures, pkg.mSignatures)
                         == PackageManager.SIGNATURE_MATCH);
-		//  add 20130709
-        if (pkg.packageName.equals("com.android.vending") && compareSignatures(pkg.mSignatures, new Signature[]{new Signature("308204433082032ba003020102020900c2e08746644a308d300d06092a864886f70d01010405003074310b3009060355040613025553311330110603550408130a43616c69666f726e6961311630140603550407130d4d6f756e7461696e205669657731143012060355040a130b476f6f676c6520496e632e3110300e060355040b1307416e64726f69643110300e06035504031307416e64726f6964301e170d3038303832313233313333345a170d3336303130373233313333345a3074310b3009060355040613025553311330110603550408130a43616c69666f726e6961311630140603550407130d4d6f756e7461696e205669657731143012060355040a130b476f6f676c6520496e632e3110300e060355040b1307416e64726f69643110300e06035504031307416e64726f696430820120300d06092a864886f70d01010105000382010d00308201080282010100ab562e00d83ba208ae0a966f124e29da11f2ab56d08f58e2cca91303e9b754d372f640a71b1dcb130967624e4656a7776a92193db2e5bfb724a91e77188b0e6a47a43b33d9609b77183145ccdf7b2e586674c9e1565b1f4c6a5955bff251a63dabf9c55c27222252e875e4f8154a645f897168c0b1bfc612eabf785769bb34aa7984dc7e2ea2764cae8307d8c17154d7ee5f64a51a44a602c249054157dc02cd5f5c0e55fbef8519fbe327f0b1511692c5a06f19d18385f5c4dbc2d6b93f68cc2979c70e18ab93866b3bd5db8999552a0e3b4c99df58fb918bedc182ba35e003c1b4b10dd244a8ee24fffd333872ab5221985edab0fc0d0b145b6aa192858e79020103a381d93081d6301d0603551d0e04160414c77d8cc2211756259a7fd382df6be398e4d786a53081a60603551d2304819e30819b8014c77d8cc2211756259a7fd382df6be398e4d786a5a178a4763074310b3009060355040613025553311330110603550408130a43616c69666f726e6961311630140603550407130d4d6f756e7461696e205669657731143012060355040a130b476f6f676c6520496e632e3110300e060355040b1307416e64726f69643110300e06035504031307416e64726f6964820900c2e08746644a308d300c0603551d13040530030101ff300d06092a864886f70d010104050003820101006dd252ceef85302c360aaace939bcff2cca904bb5d7a1661f8ae46b2994204d0ff4a68c7ed1a531ec4595a623ce60763b167297a7ae35712c407f208f0cb109429124d7b106219c084ca3eb3f9ad5fb871ef92269a8be28bf16d44c8d9a08e6cb2f005bb3fe2cb96447e868e731076ad45b33f6009ea19c161e62641aa99271dfd5228c5c587875ddb7f452758d661f6cc0cccb7352e424cc4365c523532f7325137593c4ae341f4db41edda0d0b1071a7c440f0fe9ea01cb627ca674369d084bd2fd911ff06cdbf2cfa10dc0f893ae35762919048c7efc64c7144178342f70581c9de573af55b390dd7fdb9418631895d5f759f30112687ff621410c069308a")}) == PackageManager.SIGNATURE_MATCH){
-			allowed = true;
-		}
         if (!allowed && (bp.protectionLevel
                 & PermissionInfo.PROTECTION_FLAG_SYSTEM) != 0) {
             if (isSystemApp(pkg)) {
@@ -5570,9 +5612,9 @@ public class PackageManagerService extends IPackageManager.Stub {
                         // version of the one on the data partition, but which
                         // granted a new system permission that it didn't have
                         // before.  In this case we do want to allow the app to
-                        // now get the new permission if the new system-partition
-                        // apk is privileged to get it.
-                        if (sysPs.pkg != null && isPrivilegedApp(pkg)) {
+                        // now get the new permission if the ancestral apk is
+                        // privileged to get it.
+                        if (sysPs.pkg != null && sysPs.isPrivileged()) {
                             for (int j=0;
                                     j<sysPs.pkg.requestedPermissions.size(); j++) {
                                 if (perm.equals(
@@ -9374,7 +9416,7 @@ public class PackageManagerService extends IPackageManager.Stub {
         }
     }
 
-    boolean locationIsPrivileged(File path) {
+    static boolean locationIsPrivileged(File path) {
         try {
             final String privilegedAppDir = new File(Environment.getRootDirectory(), "priv-app")
                     .getCanonicalPath();
@@ -9954,6 +9996,10 @@ public class PackageManagerService extends IPackageManager.Stub {
         // writer
         int callingUid = Binder.getCallingUid();
         enforceCrossUserPermission(callingUid, userId, true, "add preferred activity");
+        if (filter.countActions() == 0) {
+            Slog.w(TAG, "Cannot set a preferred activity with no filter actions");
+            return;
+        }
         synchronized (mPackages) {
             if (mContext.checkCallingOrSelfPermission(
                     android.Manifest.permission.SET_PREFERRED_APPLICATIONS)
@@ -9984,11 +10030,11 @@ public class PackageManagerService extends IPackageManager.Stub {
         }
         if (filter.countDataAuthorities() != 0
                 || filter.countDataPaths() != 0
-                || filter.countDataSchemes() != 0
+                || filter.countDataSchemes() > 1
                 || filter.countDataTypes() != 0) {
             throw new IllegalArgumentException(
                     "replacePreferredActivity expects filter to have no data authorities, " +
-                    "paths, schemes or types.");
+                    "paths, or types; and at most one scheme.");
         }
         synchronized (mPackages) {
             if (mContext.checkCallingOrSelfPermission(
@@ -10005,31 +10051,27 @@ public class PackageManagerService extends IPackageManager.Stub {
             }
 
             final int callingUserId = UserHandle.getCallingUserId();
-            ArrayList<PreferredActivity> removed = null;
             PreferredIntentResolver pir = mSettings.mPreferredActivities.get(callingUserId);
             if (pir != null) {
-                Iterator<PreferredActivity> it = pir.filterIterator();
-                String action = filter.getAction(0);
-                String category = filter.getCategory(0);
-                while (it.hasNext()) {
-                    PreferredActivity pa = it.next();
-                    if (pa.getAction(0).equals(action) && pa.getCategory(0).equals(category)) {
-                        if (removed == null) {
-                            removed = new ArrayList<PreferredActivity>();
-                        }
-                        removed.add(pa);
-                        if (DEBUG_PREFERRED) {
-                            Slog.i(TAG, "Removing preferred activity "
-                                    + pa.mPref.mComponent + ":");
-                            filter.dump(new LogPrinter(Log.INFO, TAG), "  ");
-                        }
-                    }
+                Intent intent = new Intent(filter.getAction(0)).addCategory(filter.getCategory(0));
+                if (filter.countDataSchemes() == 1) {
+                    Uri.Builder builder = new Uri.Builder();
+                    builder.scheme(filter.getDataScheme(0));
+                    intent.setData(builder.build());
                 }
-                if (removed != null) {
-                    for (int i=0; i<removed.size(); i++) {
-                        PreferredActivity pa = removed.get(i);
-                        pir.removeFilter(pa);
+                List<PreferredActivity> matches = pir.queryIntent(
+                        intent, null, true, callingUserId);
+                if (DEBUG_PREFERRED) {
+                    Slog.i(TAG, matches.size() + " preferred matches for " + intent);
+                }
+                for (int i = 0; i < matches.size(); i++) {
+                    PreferredActivity pa = matches.get(i);
+                    if (DEBUG_PREFERRED) {
+                        Slog.i(TAG, "Removing preferred activity "
+                                + pa.mPref.mComponent + ":");
+                        filter.dump(new LogPrinter(Log.INFO, TAG), "  ");
                     }
+                    pir.removeFilter(pa);
                 }
             }
             addPreferredActivityInternal(filter, match, set, activity, true, callingUserId);

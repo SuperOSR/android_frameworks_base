@@ -81,6 +81,11 @@ public class BridgePowerManager implements IPowerManager {
     }
 
     @Override
+    public void updateWakeLockUids(IBinder arg0, int[] arg1) throws RemoteException {
+        // pass for now.
+    }
+
+    @Override
     public void setAttentionLight(boolean arg0, int arg1) throws RemoteException {
         // pass for now.
     }
@@ -125,26 +130,4 @@ public class BridgePowerManager implements IPowerManager {
     public void wakeUp(long time) throws RemoteException {
         // pass for now.
     }
-
-	@Override
-	public void goToBootFastSleep(long eventTime) throws RemoteException{
-		// pass for now.
-	}
-
-	@Override
-	public void bootFastWake(long eventTime) throws RemoteException{
-		// pass for now.
-	}
-
-	@Override
-	public boolean isBootFastStatus() throws RemoteException{
-		// pass for now.
-		return true;
-	}
-
-	@Override
-	public boolean isBootFastWakeFromStandby() throws RemoteException{
-		// pass for now.
-		return true;
-	}
 }

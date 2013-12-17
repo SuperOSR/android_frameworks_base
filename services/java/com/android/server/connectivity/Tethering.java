@@ -51,7 +51,6 @@ import com.android.internal.util.IState;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.server.IoThread;
-import com.android.server.net.BaseNetworkObserver;
 import com.google.android.collect.Lists;
 
 import java.io.FileDescriptor;
@@ -71,7 +70,7 @@ import java.util.Set;
  *
  * TODO - look for parent classes and code sharing
  */
-public class Tethering extends BaseNetworkObserver {
+public class Tethering extends INetworkManagementEventObserver.Stub {
 
     private Context mContext;
     private final static String TAG = "Tethering";
@@ -315,6 +314,14 @@ public class Tethering extends BaseNetworkObserver {
             mIfaces.remove(iface);
         }
     }
+
+    public void addressUpdated(String address, String iface, int flags, int scope) {}
+
+    public void addressRemoved(String address, String iface, int flags, int scope) {}
+
+    public void limitReached(String limitName, String iface) {}
+
+    public void interfaceClassDataActivityChanged(String label, boolean active) {}
 
     public int tether(String iface) {
         if (DBG) Log.d(TAG, "Tethering " + iface);

@@ -35,6 +35,7 @@ import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.text.TextUtils;
+import android.util.Log;
 import android.util.Slog;
 import android.util.SparseArray;
 import android.view.Display;
@@ -49,11 +50,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import android.content.ContentResolver;
-import android.database.ContentObserver;
-import android.provider.Settings;
-import android.provider.Settings.SettingNotFoundException;
-import android.view.Surface;
 /**
  * Manages attached displays.
  * <p>
@@ -178,6 +174,9 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
     // The Wifi display adapter, or null if not registered.
     private WifiDisplayAdapter mWifiDisplayAdapter;
 
+    // The number of active wifi display scan requests.
+    private int mWifiDisplayScanRequestCount;
+
     // The virtual display adapter, or null if not registered.
     private VirtualDisplayAdapter mVirtualDisplayAdapter;
 
@@ -200,115 +199,6 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
     // input system.  May be used outside of the lock but only on the handler thread.
     private final DisplayViewport mTempDefaultViewport = new DisplayViewport();
     private final DisplayViewport mTempExternalTouchViewport = new DisplayViewport();
-    
-    private static final int DISPLAY_CMD_SETBACKLIGHTMODE = 0x02;
-    private static final int DISPLAY_CMD_SETBACKLIGHTDEMOMODE = 0x03;
-    private static final int DISPLAY_CMD_SETDISPLAYENHANCEMODE = 0x04;
-    private static final int DISPLAY_CMD_SETDISPLAYENHANCEDEMOMODE = 0x05;
-    private static final int DISPLAY_CMD_SETOUTPUTMODE = 0x06;
-
-    private static final int DISPLAY_OUTPUT_TYPE_HDMI = 4;
-
-    private static final int DISPLAY_TVFORMAT_720P_50HZ = 4;
-    private static final int DISPLAY_TVFORMAT_720P_60HZ = 5;
-    private static final int DISPLAY_TVFORMAT_1080I_50HZ = 6;
-    private static final int DISPLAY_TVFORMAT_1080I_60HZ = 7;
-    private static final int DISPLAY_TVFORMAT_1080P_24HZ = 8;
-    private static final int DISPLAY_TVFORMAT_1080P_50HZ = 9;
-    private static final int DISPLAY_TVFORMAT_1080P_60HZ = 0xa;
-    private static final int DISPLAY_TVFORMAT_AUTO = 0xFF;
-
-    private int mBrightSystemMode;
-    private int mBrightnessLightMode;
-    private int mHdmiOutputMode;
-    private boolean mIsFullScreen;
-
-    class SettingsObserver extends ContentObserver {
-        SettingsObserver(Handler handler) {
-            super(handler);
-        }
-
-        void observe() {
-            ContentResolver resolver = mContext.getContentResolver();
-            resolver.registerContentObserver(Settings.System.getUriFor(
-                    Settings.System.BRIGHT_SYSTEM_MODE), false, this);
-            resolver.registerContentObserver(Settings.System.getUriFor(
-                    Settings.System.BRIGHTNESS_LIGHT_MODE), false, this);
-            resolver.registerContentObserver(Settings.System.getUriFor(
-                    Settings.System.HDMI_OUTPUT_MODE), false, this);
-            resolver.registerContentObserver(Settings.System.getUriFor(
-                    Settings.System.HDMI_FULL_SCREEN), false, this);
-            update();
-        }
-
-        @Override public void onChange(boolean selfChange) {
-            update();
-        }
-
-        public void update() {
-            ContentResolver resolver = mContext.getContentResolver();
-            try{
-                int brightSystemMode = Settings.System.getInt(resolver,
-                        Settings.System.BRIGHT_SYSTEM_MODE);
-                int brightnessLightMode = Settings.System.getInt(resolver,
-                        Settings.System.BRIGHTNESS_LIGHT_MODE);
-                int hdmiOutputMode = Settings.System.getInt(resolver,
-                        Settings.System.HDMI_OUTPUT_MODE);
-                boolean isFullScreen = (Settings.System.getInt(resolver,
-                        Settings.System.HDMI_FULL_SCREEN) & 0x01) > 0;
-
-                switch (hdmiOutputMode) {
-                    case 0:
-                        hdmiOutputMode = DISPLAY_TVFORMAT_AUTO;
-                        break;
-                    case 1:
-                        hdmiOutputMode = DISPLAY_TVFORMAT_720P_50HZ;
-                        break;
-                    case 2:
-                        hdmiOutputMode = DISPLAY_TVFORMAT_720P_60HZ;
-                        break;
-                    case 3:
-                        hdmiOutputMode = DISPLAY_TVFORMAT_1080P_24HZ;
-                        break;
-                    case 4:
-                        hdmiOutputMode = DISPLAY_TVFORMAT_1080P_50HZ;
-                        break;
-                    case 5:
-                        hdmiOutputMode = DISPLAY_TVFORMAT_1080P_60HZ;
-                        break;
-                }
-
-                if (mBrightSystemMode!=brightSystemMode){
-                    Slog.v(TAG,"update:brightSystemMode="+brightSystemMode);
-                    mBrightSystemMode = brightSystemMode;
-                    setDisplayEnhanceMode((mBrightSystemMode&0x01)>0?1:0);
-                    setDisplayEnhanceDemoMode((mBrightSystemMode&0x02)>0?1:0);
-                }
-                if (mBrightnessLightMode!=brightnessLightMode){
-                    Slog.v(TAG,"update:brightnessLightMode="+brightnessLightMode);
-                    mBrightnessLightMode = brightnessLightMode;
-                    setDisplayBacklightMode((mBrightnessLightMode&0x01)>0?1:0);
-                    setDisplayBacklightDemoMode((mBrightnessLightMode&0x02)>0?1:0);
-                }
-                if (mHdmiOutputMode != hdmiOutputMode){
-                    Slog.v(TAG,"update:hdmiOutputMode=" + hdmiOutputMode);
-                    mHdmiOutputMode = hdmiOutputMode;
-                    setHdmiOutputMode(DISPLAY_OUTPUT_TYPE_HDMI, mHdmiOutputMode);
-                }
-                if (mIsFullScreen != isFullScreen){
-                    Slog.v(TAG,"update:isFullScreen=" + isFullScreen);
-                    mIsFullScreen = isFullScreen;
-                    synchronized (mSyncRoot) {
-                        scheduleTraversalLocked(false);
-                    }
-                }
-            }catch(SettingNotFoundException e){
-                Slog.e(TAG, Settings.System.BRIGHTNESS_LIGHT_MODE +" or " + Settings.System.HDMI_OUTPUT_MODE +
-                        " or " + Settings.System.BRIGHT_SYSTEM_MODE+" not found");
-            }
-
-        }
-    }
 
     public DisplayManagerService(Context context, Handler mainHandler) {
         mContext = context;
@@ -377,10 +267,6 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
         }
 
         mHandler.sendEmptyMessage(MSG_REGISTER_ADDITIONAL_DISPLAY_ADAPTERS);
-        boolean enable = false;
-        setDisplayBacklightMode(enable?1:0);
-        SettingsObserver observer = new SettingsObserver(new Handler());
-        observer.observe();
     }
 
     /**
@@ -576,23 +462,78 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
         }
     }
 
-    private void onCallbackDied(int pid) {
+    private void onCallbackDied(CallbackRecord record) {
         synchronized (mSyncRoot) {
-            mCallbacks.remove(pid);
+            mCallbacks.remove(record.mPid);
+            stopWifiDisplayScanLocked(record);
         }
     }
 
     @Override // Binder call
-    public void scanWifiDisplays() {
+    public void startWifiDisplayScan() {
+        mContext.enforceCallingOrSelfPermission(Manifest.permission.CONFIGURE_WIFI_DISPLAY,
+                "Permission required to start wifi display scans");
+
+        final int callingPid = Binder.getCallingPid();
         final long token = Binder.clearCallingIdentity();
         try {
             synchronized (mSyncRoot) {
-                if (mWifiDisplayAdapter != null) {
-                    mWifiDisplayAdapter.requestScanLocked();
+                CallbackRecord record = mCallbacks.get(callingPid);
+                if (record == null) {
+                    throw new IllegalStateException("The calling process has not "
+                            + "registered an IDisplayManagerCallback.");
                 }
+                startWifiDisplayScanLocked(record);
             }
         } finally {
             Binder.restoreCallingIdentity(token);
+        }
+    }
+
+    private void startWifiDisplayScanLocked(CallbackRecord record) {
+        if (!record.mWifiDisplayScanRequested) {
+            record.mWifiDisplayScanRequested = true;
+            if (mWifiDisplayScanRequestCount++ == 0) {
+                if (mWifiDisplayAdapter != null) {
+                    mWifiDisplayAdapter.requestStartScanLocked();
+                }
+            }
+        }
+    }
+
+    @Override // Binder call
+    public void stopWifiDisplayScan() {
+        mContext.enforceCallingOrSelfPermission(Manifest.permission.CONFIGURE_WIFI_DISPLAY,
+                "Permission required to stop wifi display scans");
+
+        final int callingPid = Binder.getCallingPid();
+        final long token = Binder.clearCallingIdentity();
+        try {
+            synchronized (mSyncRoot) {
+                CallbackRecord record = mCallbacks.get(callingPid);
+                if (record == null) {
+                    throw new IllegalStateException("The calling process has not "
+                            + "registered an IDisplayManagerCallback.");
+                }
+                stopWifiDisplayScanLocked(record);
+            }
+        } finally {
+            Binder.restoreCallingIdentity(token);
+        }
+    }
+
+    private void stopWifiDisplayScanLocked(CallbackRecord record) {
+        if (record.mWifiDisplayScanRequested) {
+            record.mWifiDisplayScanRequested = false;
+            if (--mWifiDisplayScanRequestCount == 0) {
+                if (mWifiDisplayAdapter != null) {
+                    mWifiDisplayAdapter.requestStopScanLocked();
+                }
+            } else if (mWifiDisplayScanRequestCount < 0) {
+                Log.wtf(TAG, "mWifiDisplayScanRequestCount became negative: "
+                        + mWifiDisplayScanRequestCount);
+                mWifiDisplayScanRequestCount = 0;
+            }
         }
     }
 
@@ -601,13 +542,14 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
         if (address == null) {
             throw new IllegalArgumentException("address must not be null");
         }
+        mContext.enforceCallingOrSelfPermission(Manifest.permission.CONFIGURE_WIFI_DISPLAY,
+                "Permission required to connect to a wifi display");
 
-        final boolean trusted = canCallerConfigureWifiDisplay();
         final long token = Binder.clearCallingIdentity();
         try {
             synchronized (mSyncRoot) {
                 if (mWifiDisplayAdapter != null) {
-                    mWifiDisplayAdapter.requestConnectLocked(address, trusted);
+                    mWifiDisplayAdapter.requestConnectLocked(address);
                 }
             }
         } finally {
@@ -617,12 +559,8 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
 
     @Override
     public void pauseWifiDisplay() {
-        if (mContext.checkCallingPermission(
-                android.Manifest.permission.CONFIGURE_WIFI_DISPLAY)
-                        != PackageManager.PERMISSION_GRANTED) {
-            throw new SecurityException("Requires CONFIGURE_WIFI_DISPLAY"
-                    + "permission to pause a wifi display session.");
-        }
+        mContext.enforceCallingOrSelfPermission(Manifest.permission.CONFIGURE_WIFI_DISPLAY,
+                "Permission required to pause a wifi display session");
 
         final long token = Binder.clearCallingIdentity();
         try {
@@ -638,12 +576,8 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
 
     @Override
     public void resumeWifiDisplay() {
-        if (mContext.checkCallingPermission(
-                android.Manifest.permission.CONFIGURE_WIFI_DISPLAY)
-                        != PackageManager.PERMISSION_GRANTED) {
-            throw new SecurityException("Requires CONFIGURE_WIFI_DISPLAY"
-                    + "permission to resume a wifi display session.");
-        }
+        mContext.enforceCallingOrSelfPermission(Manifest.permission.CONFIGURE_WIFI_DISPLAY,
+                "Permission required to resume a wifi display session");
 
         final long token = Binder.clearCallingIdentity();
         try {
@@ -659,6 +593,11 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
 
     @Override // Binder call
     public void disconnectWifiDisplay() {
+        // This request does not require special permissions.
+        // Any app can request disconnection from the currently active wifi display.
+        // This exception should no longer be needed once wifi display control moves
+        // to the media router service.
+
         final long token = Binder.clearCallingIdentity();
         try {
             synchronized (mSyncRoot) {
@@ -676,10 +615,8 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
         if (address == null) {
             throw new IllegalArgumentException("address must not be null");
         }
-        if (!canCallerConfigureWifiDisplay()) {
-            throw new SecurityException("Requires CONFIGURE_WIFI_DISPLAY permission to "
-                    + "rename a wifi display.");
-        }
+        mContext.enforceCallingOrSelfPermission(Manifest.permission.CONFIGURE_WIFI_DISPLAY,
+                "Permission required to rename to a wifi display");
 
         final long token = Binder.clearCallingIdentity();
         try {
@@ -698,10 +635,8 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
         if (address == null) {
             throw new IllegalArgumentException("address must not be null");
         }
-        if (!canCallerConfigureWifiDisplay()) {
-            throw new SecurityException("Requires CONFIGURE_WIFI_DISPLAY permission to "
-                    + "forget a wifi display.");
-        }
+        mContext.enforceCallingOrSelfPermission(Manifest.permission.CONFIGURE_WIFI_DISPLAY,
+                "Permission required to forget to a wifi display");
 
         final long token = Binder.clearCallingIdentity();
         try {
@@ -717,6 +652,9 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
 
     @Override // Binder call
     public WifiDisplayStatus getWifiDisplayStatus() {
+        // This request does not require special permissions.
+        // Any app can get information about available wifi displays.
+
         final long token = Binder.clearCallingIdentity();
         try {
             synchronized (mSyncRoot) {
@@ -728,11 +666,6 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
         } finally {
             Binder.restoreCallingIdentity(token);
         }
-    }
-
-    private boolean canCallerConfigureWifiDisplay() {
-        return mContext.checkCallingPermission(android.Manifest.permission.CONFIGURE_WIFI_DISPLAY)
-                == PackageManager.PERMISSION_GRANTED;
     }
 
     @Override // Binder call
@@ -1135,7 +1068,7 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
         }
         boolean isBlanked = (mAllDisplayBlankStateFromPowerManager == DISPLAY_BLANK_STATE_BLANKED)
                 && (info.flags & DisplayDeviceInfo.FLAG_NEVER_BLANK) == 0;
-        display.configureDisplayInTransactionLocked(device, isBlanked, mIsFullScreen);
+        display.configureDisplayInTransactionLocked(device, isBlanked);
 
         // Update the viewports if needed.
         if (!mDefaultViewport.valid
@@ -1230,6 +1163,7 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
             pw.println("  mDefaultViewport=" + mDefaultViewport);
             pw.println("  mExternalTouchViewport=" + mExternalTouchViewport);
             pw.println("  mSingleDisplayDemoMode=" + mSingleDisplayDemoMode);
+            pw.println("  mWifiDisplayScanRequestCount=" + mWifiDisplayScanRequestCount);
 
             IndentingPrintWriter ipw = new IndentingPrintWriter(pw, "    ");
             ipw.increaseIndent();
@@ -1256,6 +1190,15 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
                 LogicalDisplay display = mLogicalDisplays.valueAt(i);
                 pw.println("  Display " + displayId + ":");
                 display.dumpLocked(ipw);
+            }
+
+            final int callbackCount = mCallbacks.size();
+            pw.println();
+            pw.println("Callbacks: size=" + callbackCount);
+            for (int i = 0; i < callbackCount; i++) {
+                CallbackRecord callback = mCallbacks.valueAt(i);
+                pw.println("  " + i + ": mPid=" + callback.mPid
+                        + ", mWifiDisplayScanRequested=" + callback.mWifiDisplayScanRequested);
             }
         }
     }
@@ -1357,8 +1300,10 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
     }
 
     private final class CallbackRecord implements DeathRecipient {
-        private final int mPid;
+        public final int mPid;
         private final IDisplayManagerCallback mCallback;
+
+        public boolean mWifiDisplayScanRequested;
 
         public CallbackRecord(int pid, IDisplayManagerCallback callback) {
             mPid = pid;
@@ -1370,7 +1315,7 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
             if (DEBUG) {
                 Slog.d(TAG, "Display listener for pid " + mPid + " died.");
             }
-            onCallbackDied(mPid);
+            onCallbackDied(this);
         }
 
         public void notifyDisplayEventAsync(int displayId, int event) {
@@ -1382,50 +1327,5 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
                 binderDied();
             }
         }
-    }
-
-    @Override // Binder call
-    public int setDisplayParameter(int displaytype, int cmd, int para0, int para1, int para2) {
-        IBinder displayToken = null;
-        if( Display.TYPE_BUILT_IN == displaytype) {
-            displayToken = Surface.getBuiltInDisplay(Surface.BUILT_IN_DISPLAY_ID_MAIN);
-        } else if( Display.TYPE_HDMI == displaytype) {
-            displayToken = Surface.getBuiltInDisplay(Surface.BUILT_IN_DISPLAY_ID_HDMI);
-        }
-        if (displayToken != null) {
-            return Surface.setDisplayParameter(displayToken, cmd, para0, para1, para2);
-        } else {
-            return -1;
-        }
-    }
-
-    private int setDisplayBacklightMode(int mode)
-    {
-        return setDisplayParameter(Display.TYPE_BUILT_IN ,
-                DISPLAY_CMD_SETBACKLIGHTMODE, mode, 0, 0);
-    }
-
-    private int setDisplayBacklightDemoMode(int mode)
-    {
-        return setDisplayParameter(Display.TYPE_BUILT_IN ,
-                DISPLAY_CMD_SETBACKLIGHTDEMOMODE, mode, 0, 0);
-    }
-
-    private int setDisplayEnhanceMode(int mode)
-    {
-        return setDisplayParameter(Display.TYPE_BUILT_IN ,
-                DISPLAY_CMD_SETDISPLAYENHANCEMODE, mode, 0, 0);
-    }
-
-    private int setDisplayEnhanceDemoMode(int mode)
-    {
-        return setDisplayParameter(Display.TYPE_BUILT_IN ,
-                DISPLAY_CMD_SETDISPLAYENHANCEDEMOMODE, mode, 0, 0);
-    }
-
-    private int setHdmiOutputMode(int out_type, int out_mode)
-    {
-        return setDisplayParameter(Display.TYPE_BUILT_IN ,
-                DISPLAY_CMD_SETOUTPUTMODE, out_type, out_mode, 0);
     }
 }

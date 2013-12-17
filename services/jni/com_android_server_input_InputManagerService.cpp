@@ -34,7 +34,6 @@
 #include <utils/Log.h>
 #include <utils/Looper.h>
 #include <utils/threads.h>
-#include <cutils/properties.h>
 
 #include <input/InputManager.h>
 #include <input/PointerController.h>
@@ -253,9 +252,6 @@ private:
     // Power manager interactions.
     bool isScreenOn();
     bool isScreenBright();
-    void tempWakeUp(nsecs_t eventTime);
-    bool isBootFastStatus();
-    bool isPowered();
 
     static bool checkAndClearExceptionFromCallback(JNIEnv* env, const char* methodName);
 
@@ -815,14 +811,6 @@ void NativeInputManager::interceptKeyBeforeQueueing(const KeyEvent* keyEvent,
             }
         }
 
-        if(isBootFastStatus()){
-            if(isPowered() == true){
-                if(isScreenOn == false){
-                    if(keyEvent->getKeyCode()==AKEYCODE_POWER)
-                    tempWakeUp(0);
-                }
-            }
-        }
         handleInterceptActions(wmActions, when, /*byref*/ policyFlags);
     } else {
         policyFlags |= POLICY_FLAG_PASS_TO_USER;
@@ -959,18 +947,6 @@ bool NativeInputManager::dispatchUnhandledKey(const sp<InputWindowHandle>& input
     return result;
 }
 
-bool NativeInputManager::isBootFastStatus(){
-    return android_server_PowerManagerService_isBootFastStatus();
-}
-
-bool NativeInputManager::isPowered(){
-    return android_server_PowerManagerService_isPowered();
-}
-
-void NativeInputManager::tempWakeUp(nsecs_t eventTime){
-    android_server_PowerManagerService_tempWakeuUp(eventTime);
-}
-    
 void NativeInputManager::pokeUserActivity(nsecs_t eventTime, int32_t eventType) {
     android_server_PowerManagerService_userActivity(eventTime, eventType);
 }
@@ -1031,23 +1007,6 @@ static void nativeSetDisplayViewport(JNIEnv* env, jclass clazz, jint ptr, jboole
         jint deviceWidth, jint deviceHeight) {
     NativeInputManager* im = reinterpret_cast<NativeInputManager*>(ptr);
 
-    if(!external)
-    {
-        char property[PROPERTY_VALUE_MAX];
-        if (property_get("ro.sf.rotation", property, NULL) > 0) {
-            switch (atoi(property)) {
-                case 90:
-                    orientation = (orientation + 1) % 4;
-                    break;
-                case 180:
-                    orientation = (orientation + 2) % 4;
-                    break;
-                case 270:
-                    orientation = (orientation + 3) % 4;
-                    break;
-            }
-        }
-    }
     DisplayViewport v;
     v.displayId = displayId;
     v.orientation = orientation;

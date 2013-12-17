@@ -27,7 +27,6 @@ import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.media.AudioService;
 import android.net.wifi.p2p.WifiP2pService;
-import android.os.DynamicPManager;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -56,6 +55,7 @@ import com.android.server.content.ContentService;
 import com.android.server.display.DisplayManagerService;
 import com.android.server.dreams.DreamManagerService;
 import com.android.server.input.InputManagerService;
+import com.android.server.media.MediaRouterService;
 import com.android.server.net.NetworkPolicyManagerService;
 import com.android.server.net.NetworkStatsService;
 import com.android.server.os.SchedulingPolicyService;
@@ -129,7 +129,6 @@ class ServerThread {
         ContentService contentService = null;
         LightsService lights = null;
         PowerManagerService power = null;
-        DynamicPManagerService dpm = null;
         DisplayManagerService display = null;
         BatteryService battery = null;
         VibratorService vibrator = null;
@@ -141,7 +140,6 @@ class ServerThread {
         ConnectivityService connectivity = null;
         WifiP2pService wifiP2p = null;
         WifiService wifi = null;
-        EthernetService ethernet = null;
         NsdService serviceDiscovery= null;
         IPackageManager pm = null;
         Context context = null;
@@ -282,9 +280,6 @@ class ServerThread {
             Slog.i(TAG, "Battery Service");
             battery = new BatteryService(context, lights);
             ServiceManager.addService("battery", battery);
-            
-            dpm = new DynamicPManagerService(context);
-            ServiceManager.addService(DynamicPManager.DPM_SERVICE, dpm);
 
             Slog.i(TAG, "Vibrator Service");
             vibrator = new VibratorService(context);
@@ -362,6 +357,7 @@ class ServerThread {
         DreamManagerService dreamy = null;
         AssetAtlasService atlas = null;
         PrintManagerService printManager = null;
+        MediaRouterService mediaRouter = null;
 
         // Bring up services needed for UI.
         if (factoryTest != SystemServer.FACTORY_TEST_LOW_LEVEL) {
@@ -555,14 +551,6 @@ class ServerThread {
              */
             if (mountService != null && !onlyCore) {
                 mountService.waitForAsecScan();
-            }
-
-           try {
-                Slog.i(TAG, "Ethernet Service");
-                ethernet = new EthernetService(context);
-                ServiceManager.addService(Context.ETHERNET_SERVICE, ethernet);
-            } catch (Throwable e) {
-                reportWtf("starting Ethernet Service", e);
             }
 
             try {
@@ -818,6 +806,16 @@ class ServerThread {
             } catch (Throwable e) {
                 reportWtf("starting Print Service", e);
             }
+
+            if (!disableNonCoreServices) {
+                try {
+                    Slog.i(TAG, "Media Router Service");
+                    mediaRouter = new MediaRouterService(context);
+                    ServiceManager.addService(Context.MEDIA_ROUTER_SERVICE, mediaRouter);
+                } catch (Throwable e) {
+                    reportWtf("starting MediaRouterService", e);
+                }
+            }
         }
 
         // Before things start rolling, be sure we have decided whether
@@ -903,12 +901,6 @@ class ServerThread {
             reportWtf("making Display Manager Service ready", e);
         }
 
-		try {
-			if(dpm != null) dpm.systemReady();
-		}catch (Throwable e){
-			reportWtf("making DynamicPower Service ready", e);
-		}		
-
         // These are needed to propagate to the runnable below.
         final Context contextF = context;
         final MountService mountServiceF = mountService;
@@ -936,6 +928,7 @@ class ServerThread {
         final InputManagerService inputManagerF = inputManager;
         final TelephonyRegistry telephonyRegistryF = telephonyRegistry;
         final PrintManagerService printManagerF = printManager;
+        final MediaRouterService mediaRouterF = mediaRouter;
 
         // We now tell the activity manager it is okay to run third party
         // code.  It will call back into us once it has gotten to the state
@@ -1082,6 +1075,12 @@ class ServerThread {
                     if (printManagerF != null) printManagerF.systemRuning();
                 } catch (Throwable e) {
                     reportWtf("Notifying PrintManagerService running", e);
+                }
+
+                try {
+                    if (mediaRouterF != null) mediaRouterF.systemRunning();
+                } catch (Throwable e) {
+                    reportWtf("Notifying MediaRouterService running", e);
                 }
             }
         });

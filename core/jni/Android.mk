@@ -60,7 +60,6 @@ LOCAL_SRC_FILES:= \
 	android_text_AndroidCharacter.cpp \
 	android_text_AndroidBidi.cpp \
 	android_os_Debug.cpp \
-	android_os_FileUtils.cpp \
 	android_os_MemoryFile.cpp \
 	android_os_MessageQueue.cpp \
 	android_os_Parcel.cpp \
@@ -227,11 +226,6 @@ LOCAL_LDLIBS += -lpthread -ldl
 
 ifeq ($(WITH_MALLOC_LEAK_CHECK),true)
 	LOCAL_CFLAGS += -DMALLOC_LEAK_CHECK
-endif
-
-ifeq ($(TARGET_BOARD_PLATFORM), fiber)
-    LOCAL_CFLAGS += -DTARGET_BOARD_FIBER
-    LOCAL_C_INCLUDES += frameworks/native/include
 endif
 
 LOCAL_MODULE:= libandroid_runtime

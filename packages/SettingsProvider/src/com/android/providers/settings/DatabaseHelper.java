@@ -1981,9 +1981,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             // Set default tty mode
             loadSetting(stmt, Settings.System.TTY_MODE, 0);
 
-	    loadFractionSetting(stmt, Settings.System.SCREEN_AUTO_BRIGHTNESS_ADJ,
-                R.fraction.def_screen_auto_brightness_adj, 0);
-
             loadIntegerSetting(stmt, Settings.System.SCREEN_BRIGHTNESS,
                     R.integer.def_screen_brightness);
 
@@ -2004,31 +2001,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
             loadIntegerSetting(stmt, Settings.System.POINTER_SPEED,
                     R.integer.def_pointer_speed);
-
-			loadStringSetting(stmt, Settings.System.TIME_12_24,
-                    R.string.def_time_12_24);
-
-            loadStringSetting(stmt, Settings.System.ACCELEROMETER_COORDINATE,
-                    R.string.def_accelerometer_coordinate);
-
-            loadBooleanSetting(stmt, Settings.System.DISPLAY_ADAPTION_ENABLE,
-                    R.bool.def_display_adation_enable);
-			loadBooleanSetting(stmt, Settings.System.BOOT_FAST_ENABLE, 
-					R.bool.def_boot_fast_enable);
-			loadBooleanSetting(stmt, Settings.System.CPU_FAST_ENABLE, 
-					R.bool.def_cpu_fast_enable);			
-
-            loadIntegerSetting(stmt, Settings.System.BRIGHT_SYSTEM_MODE,
-                    R.integer.def_bright_system);
-
-            loadIntegerSetting(stmt, Settings.System.BRIGHTNESS_LIGHT_MODE,
-                    R.integer.def_brightness_light);
-
-            loadIntegerSetting(stmt, Settings.System.HDMI_OUTPUT_MODE,
-                    R.integer.def_hdmi_output_mode);
-
-            loadIntegerSetting(stmt, Settings.System.HDMI_FULL_SCREEN,
-                    R.integer.def_hdmi_full_screen);
         } finally {
             if (stmt != null) stmt.close();
         }
@@ -2077,9 +2049,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             //loadSetting(stmt, Settings.Secure.ADB_ENABLED, 0);
 
             // Allow mock locations default, based on build
-            //loadSetting(stmt, Settings.Secure.ALLOW_MOCK_LOCATION,
-              //      "1".equals(SystemProperties.get("ro.allow.mock.location")) ? 1 : 0);
-		loadSetting(stmt, Settings.Secure.ALLOW_MOCK_LOCATION, 0);
+            loadSetting(stmt, Settings.Secure.ALLOW_MOCK_LOCATION,
+                    "1".equals(SystemProperties.get("ro.allow.mock.location")) ? 1 : 0);
 
             loadSecure35Settings(stmt);
 
@@ -2204,12 +2175,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
             loadBooleanSetting(stmt, Settings.Global.BLUETOOTH_ON,
                     R.bool.def_bluetooth_on);
-
-            loadBooleanSetting(stmt, Settings.Global.ETHERNET_ON,
-                    R.bool.def_ethernet_on);
-
-            loadBooleanSetting(stmt, Settings.Global.ETHERNET_MODE,
-                    R.bool.def_ethernet_mode);
 
             // Enable or disable Cell Broadcast SMS
             loadSetting(stmt, Settings.Global.CDMA_CELL_BROADCAST_SMS,

@@ -261,11 +261,7 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
             });
 
         // next: airplane mode
-        // remove Airplane Toggle in non-telephony applications, yemao, 2013-5-27 20:39:12
-	// use the same property with which of baseband version used in the Settings.apk
-        if (SystemProperties.getBoolean("ro.sw.embeded.telephony", false)) {
-	        mItems.add(mAirplaneModeOn);
-        }
+        mItems.add(mAirplaneModeOn);
 
         // next: bug report, if enabled
         if (Settings.Global.getInt(mContext.getContentResolver(),
@@ -906,16 +902,7 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
 
     private void onAirplaneModeChanged() {
         // Let the service state callbacks handle the state.
-        /**
-         * 2013-5-7 11:17:31, Winner
-         * remove this condition judgment when AirplaneMode is changed.
-         * In some non-telephone products(not wifi-only), 3G Dongles are
-         * used. The telephone related services are registered even
-         * throuth the 3G dongles has not been plugged into the device.
-         * In this situation, return will cause the action error of the
-         * Global Action Dialog.
-         */
-        //if (mHasTelephony) return;
+        if (mHasTelephony) return;
 
         boolean airplaneModeOn = Settings.Global.getInt(
                 mContext.getContentResolver(),

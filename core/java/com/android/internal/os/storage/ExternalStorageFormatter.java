@@ -50,7 +50,6 @@ public class ExternalStorageFormatter extends Service
 
     private boolean mFactoryReset = false;
     private boolean mAlwaysReset = false;
-	private boolean mRunOnce = true;
 
     StorageEventListener mStorageListener = new StorageEventListener() {
         @Override
@@ -84,7 +83,7 @@ public class ExternalStorageFormatter extends Service
         if (intent.getBooleanExtra(EXTRA_ALWAYS_RESET, false)) {
             mAlwaysReset = true;
         }
-		mRunOnce = true;
+
         mStorageVolume = intent.getParcelableExtra(StorageVolume.EXTRA_STORAGE_VOLUME);
 
         if (mProgressDialog == null) {
@@ -147,10 +146,6 @@ public class ExternalStorageFormatter extends Service
                 mStorageManager.getVolumeState(mStorageVolume.getPath());
         if (Environment.MEDIA_MOUNTED.equals(status)
                 || Environment.MEDIA_MOUNTED_READ_ONLY.equals(status)) {
-            if(!mRunOnce){
-				Log.d(TAG,"ExternalStorageFormatter only run once");
-				return;
-            }
             updateProgressDialog(R.string.progress_unmounting);
             IMountService mountService = getMountService();
             final String extStoragePath = mStorageVolume == null ?
@@ -187,7 +182,6 @@ public class ExternalStorageFormatter extends Service
                                 sendBroadcast(new Intent("android.intent.action.MASTER_CLEAR"));
                                 // Intent handling is asynchronous -- assume it will happen soon.
                                 stopSelf();
-								mRunOnce = false;
                                 return;
                             }
                         }
@@ -203,7 +197,6 @@ public class ExternalStorageFormatter extends Service
                             }
                         }
                         stopSelf();
-						mRunOnce = false;
                         return;
                     }
                 }.start();

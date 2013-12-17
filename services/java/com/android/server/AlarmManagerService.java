@@ -73,7 +73,6 @@ class AlarmManagerService extends IAlarmManager.Stub {
     private static final int RTC_MASK = 1 << RTC;
     private static final int ELAPSED_REALTIME_WAKEUP_MASK = 1 << ELAPSED_REALTIME_WAKEUP; 
     private static final int ELAPSED_REALTIME_MASK = 1 << ELAPSED_REALTIME;
-    private static final int RTC_SHUTDOWN_WAKEUP_MASK = 1 << AlarmManager.RTC_SHUTDOWN_WAKEUP;
     private static final int TIME_CHANGED_MASK = 1 << 16;
     private static final int IS_WAKEUP_MASK = RTC_WAKEUP_MASK|ELAPSED_REALTIME_WAKEUP_MASK;
 
@@ -100,7 +99,6 @@ class AlarmManagerService extends IAlarmManager.Stub {
 
     private Object mLock = new Object();
 
-	private final ArrayList<Alarm> mRtcWakeupShutdownAlarms = new ArrayList<Alarm>();
     private int mDescriptor;
     private long mNextWakeup;
     private long mNextNonWakeup;
@@ -324,7 +322,7 @@ class AlarmManagerService extends IAlarmManager.Stub {
     private final ArrayList<Batch> mAlarmBatches = new ArrayList<Batch>();
 
     static long convertToElapsed(long when, int type) {
-        final boolean isRtc = (type == RTC || type == RTC_WAKEUP || type == RTC_SHUTDOWN_WAKEUP);
+        final boolean isRtc = (type == RTC || type == RTC_WAKEUP);
         if (isRtc) {
             when -= System.currentTimeMillis() - SystemClock.elapsedRealtime();
         }
@@ -387,10 +385,19 @@ class AlarmManagerService extends IAlarmManager.Stub {
             for (int i = 0; i < N; i++) {
                 Alarm a = batch.get(i);
                 long whenElapsed = convertToElapsed(a.when, a.type);
-                long maxElapsed = (a.whenElapsed == a.maxWhen)
-                        ? whenElapsed
-                                : maxTriggerTime(nowElapsed, whenElapsed, a.repeatInterval);
-                setImplLocked(a.type, a.when, whenElapsed, maxElapsed,
+                final long maxElapsed;
+                if (a.whenElapsed == a.maxWhen) {
+                    // Exact
+                    maxElapsed = whenElapsed;
+                } else {
+                    // Not exact.  Preserve any explicit window, otherwise recalculate
+                    // the window based on the alarm's new futurity.  Note that this
+                    // reflects a policy of preferring timely to deferred delivery.
+                    maxElapsed = (a.windowLength > 0)
+                            ? (whenElapsed + a.windowLength)
+                            : maxTriggerTime(nowElapsed, whenElapsed, a.repeatInterval);
+                }
+                setImplLocked(a.type, a.when, whenElapsed, a.windowLength, maxElapsed,
                         a.repeatInterval, a.operation, batch.standalone, doValidate, a.workSource);
             }
         }
@@ -558,27 +565,26 @@ class AlarmManagerService extends IAlarmManager.Stub {
                         + " tElapsed=" + triggerElapsed + " maxElapsed=" + maxElapsed
                         + " interval=" + interval + " standalone=" + isStandalone);
             }
-            setImplLocked(type, triggerAtTime, triggerElapsed, maxElapsed,
+            setImplLocked(type, triggerAtTime, triggerElapsed, windowLength, maxElapsed,
                     interval, operation, isStandalone, true, workSource);
         }
     }
 
-    private void setImplLocked(int type, long when, long whenElapsed, long maxWhen, long interval,
-            PendingIntent operation, boolean isStandalone, boolean doValidate,
-            WorkSource workSource) {
-        Alarm a = new Alarm(type, when, whenElapsed, maxWhen, interval, operation, workSource);
+    private void setImplLocked(int type, long when, long whenElapsed, long windowLength,
+            long maxWhen, long interval, PendingIntent operation, boolean isStandalone,
+            boolean doValidate, WorkSource workSource) {
+        Alarm a = new Alarm(type, when, whenElapsed, windowLength, maxWhen, interval,
+                operation, workSource);
         removeLocked(operation);
 
-        boolean reschedule;
         int whichBatch = (isStandalone) ? -1 : attemptCoalesceLocked(whenElapsed, maxWhen);
         if (whichBatch < 0) {
             Batch batch = new Batch(a);
             batch.standalone = isStandalone;
-            reschedule = addBatchLocked(mAlarmBatches, batch);
+            addBatchLocked(mAlarmBatches, batch);
         } else {
             Batch batch = mAlarmBatches.get(whichBatch);
-            reschedule = batch.add(a);
-            if (reschedule) {
+            if (batch.add(a)) {
                 // The start time of this batch advanced, so batch ordering may
                 // have just been broken.  Move it to where it now belongs.
                 mAlarmBatches.remove(whichBatch);
@@ -594,13 +600,10 @@ class AlarmManagerService extends IAlarmManager.Stub {
                         + " interval=" + interval + " op=" + operation
                         + " standalone=" + isStandalone);
                 rebatchAllAlarmsLocked(false);
-                reschedule = true;
             }
         }
 
-        if (reschedule) {
-            rescheduleKernelAlarmsLocked();
-        }
+        rescheduleKernelAlarmsLocked();
     }
 
     private void logBatchesLocked() {
@@ -633,9 +636,6 @@ class AlarmManagerService extends IAlarmManager.Stub {
                     logBatchesLocked();
                     return false;
                 }
-				if (mRtcWakeupShutdownAlarms.size() > 0) {
-					dumpAlarmList(pw, mRtcWakeupShutdownAlarms, "  ", "RTC_SHUTDOWN_WAKEUP", now);
-				}
             }
         }
         return true;
@@ -728,7 +728,6 @@ class AlarmManagerService extends IAlarmManager.Stub {
     }
     
     public void removeLocked(PendingIntent operation) {
-		removeLocked(mRtcWakeupShutdownAlarms, operation);
         boolean didRemove = false;
         for (int i = mAlarmBatches.size() - 1; i >= 0; i--) {
             Batch b = mAlarmBatches.get(i);
@@ -748,7 +747,6 @@ class AlarmManagerService extends IAlarmManager.Stub {
     }
 
     public void removeLocked(String packageName) {
-		removeLocked(mRtcWakeupShutdownAlarms, packageName);
         boolean didRemove = false;
         for (int i = mAlarmBatches.size() - 1; i >= 0; i--) {
             Batch b = mAlarmBatches.get(i);
@@ -998,7 +996,6 @@ class AlarmManagerService extends IAlarmManager.Stub {
         case RTC_WAKEUP : return "RTC_WAKEUP";
         case ELAPSED_REALTIME : return "ELAPSED";
         case ELAPSED_REALTIME_WAKEUP: return "ELAPSED_WAKEUP";
-        case RTC_SHUTDOWN_WAKEUP:	   return "RTC_WAKEUP";
         default:
             break;
         }
@@ -1054,7 +1051,7 @@ class AlarmManagerService extends IAlarmManager.Stub {
                     // Also schedule its next recurrence
                     final long delta = alarm.count * alarm.repeatInterval;
                     final long nextElapsed = alarm.whenElapsed + delta;
-                    setImplLocked(alarm.type, alarm.when + delta, nextElapsed,
+                    setImplLocked(alarm.type, alarm.when + delta, nextElapsed, alarm.windowLength,
                             maxTriggerTime(nowELAPSED, nextElapsed, alarm.repeatInterval),
                             alarm.repeatInterval, alarm.operation, batch.standalone, true,
                             alarm.workSource);
@@ -1085,17 +1082,19 @@ class AlarmManagerService extends IAlarmManager.Stub {
         public int type;
         public int count;
         public long when;
+        public long windowLength;
         public long whenElapsed;    // 'when' in the elapsed time base
         public long maxWhen;        // also in the elapsed time base
         public long repeatInterval;
         public PendingIntent operation;
         public WorkSource workSource;
         
-        public Alarm(int _type, long _when, long _whenElapsed, long _maxWhen,
+        public Alarm(int _type, long _when, long _whenElapsed, long _windowLength, long _maxWhen,
                 long _interval, PendingIntent _op, WorkSource _ws) {
             type = _type;
             when = _when;
             whenElapsed = _whenElapsed;
+            windowLength = _windowLength;
             maxWhen = _maxWhen;
             repeatInterval = _interval;
             operation = _op;
@@ -1120,6 +1119,7 @@ class AlarmManagerService extends IAlarmManager.Stub {
             pw.print(prefix); pw.print("type="); pw.print(type);
                     pw.print(" whenElapsed="); pw.print(whenElapsed);
                     pw.print(" when="); TimeUtils.formatDuration(when, now, pw);
+                    pw.print(" window="); pw.print(windowLength);
                     pw.print(" repeatInterval="); pw.print(repeatInterval);
                     pw.print(" count="); pw.println(count);
             pw.print(prefix); pw.print("operation="); pw.println(operation);

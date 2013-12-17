@@ -25,9 +25,6 @@
 
 #include <EGL/egl.h>
 #include <GLES/gl.h>
-#ifdef TARGET_BOARD_FIBER
-#include <media/mediaplayer.h>
-#endif
 
 class SkBitmap;
 
@@ -46,9 +43,6 @@ public:
     virtual     ~BootAnimation();
 
     sp<SurfaceComposerClient> session() const;
-#ifdef TARGET_BOARD_FIBER
-    void playBootMusic(const char* url);
-#endif
 
 private:
     virtual bool        threadLoop();

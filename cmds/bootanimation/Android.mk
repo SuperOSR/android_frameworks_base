@@ -13,16 +13,11 @@ LOCAL_SHARED_LIBRARIES := \
 	libandroidfw \
 	libutils \
 	libbinder \
-	libui \
+    libui \
 	libskia \
-	libEGL \
-	libGLESv1_CM \
-	libgui
-        
-ifeq ($(TARGET_BOARD_PLATFORM), fiber)
-	LOCAL_SHARED_LIBRARIES += libmedia
-	LOCAL_CFLAGS += -DTARGET_BOARD_FIBER
-endif
+    libEGL \
+    libGLESv1_CM \
+    libgui
 
 LOCAL_C_INCLUDES := \
 	$(call include-path-for, corecg graphics)

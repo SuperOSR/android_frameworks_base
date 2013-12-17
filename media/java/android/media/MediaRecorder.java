@@ -200,9 +200,6 @@ public class MediaRecorder
          * </p>
          */
         public static final int REMOTE_SUBMIX = 8;
-        
-        /** FM audio source */
-        public static final int VOICE_FM = 9;
 
         /**
          * Audio source for preemptible, low-priority software hotword detection

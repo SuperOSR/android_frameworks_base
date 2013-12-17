@@ -382,6 +382,8 @@
     <string name="accessibility_quick_settings_airplane">Airplane Mode <xliff:g id="state" example="Off">%s</xliff:g>.</string>
     <!-- Content description of the bluetooth tile in quick settings (not shown on the screen). [CHAR LIMIT=NONE] -->
     <string name="accessibility_quick_settings_bluetooth">Bluetooth <xliff:g id="state" example="Off">%s</xliff:g>.</string>
+    <!-- Content description of the location tile in quick settings (not shown on the screen). [CHAR LIMIT=NONE] -->
+    <string name="accessibility_quick_settings_location">Location <xliff:g id="state" example="Off">%s</xliff:g>.</string>
     <!-- Content description of the alarm tile in quick settings (not shown on the screen). [CHAR LIMIT=NONE] -->
     <string name="accessibility_quick_settings_alarm">Alarm set for <xliff:g id="time" example="Wed 3:30 PM">%s</xliff:g>.</string>
 
@@ -421,10 +423,6 @@
 
     <!-- Content description of the clear button in the notification panel for accessibility (not shown on the screen). [CHAR LIMIT=NONE] -->
     <string name="accessibility_clear_all">Clear all notifications.</string>
-
-    <!-- ethernet string  -->
-    <string name="ethernet_link">Ethernet connect to network</string>
-    <string name="ethernet_description">Ethernet</string>
 
     <!-- Title shown in notification popup for inspecting the responsible
          application -->
@@ -492,19 +490,12 @@
     <string name="quick_settings_wifi_no_network">No Network</string>
     <!-- QuickSettings: Wifi (Off) [CHAR LIMIT=NONE] -->
     <string name="quick_settings_wifi_off_label">Wi-Fi Off</string>
-    <!-- QuickSettings: Wifi display [CHAR LIMIT=NONE] -->
-    <string name="quick_settings_wifi_display_label">Wi-Fi Display</string>
-    <!-- QuickSettings: Wifi display [CHAR LIMIT=NONE] -->
-    <string name="quick_settings_wifi_display_no_connection_label">Wireless Display</string>
+    <!-- QuickSettings: Remote display [CHAR LIMIT=NONE] -->
+    <string name="quick_settings_remote_display_no_connection_label">Cast Screen</string>
     <!-- QuickSettings: Brightness dialog title [CHAR LIMIT=NONE] -->
     <string name="quick_settings_brightness_dialog_title">Brightness</string>
     <!-- QuickSettings: Brightness dialog auto brightness button [CHAR LIMIT=NONE] -->
     <string name="quick_settings_brightness_dialog_auto_brightness_label">AUTO</string>
-    
-    <!-- QuickSettings: Ethernet [CHAR LIMIT=NONE] -->
-    <string name="quick_settings_ethernet_label">Connected</string>
-    <!-- QuickSettings: Ethernet [CHAR LIMIT=NONE] -->
-    <string name="quick_settings_ethernet_no_connection_label">No Connection</string>
 
 
     <!-- Glyph to be overlaid atop the battery when the level is extremely low. Do not translate. -->
@@ -515,26 +506,5 @@
          If the text fits on one line (~14 chars), it should start with a
          linebreak to position it correctly.  [CHAR LIMIT=45] -->
     <string name="ssl_ca_cert_warning">Network may\nbe monitored</string>
-    
-    <!-- notify devices mounted -->
-	<string name="usb_mounted_title">usb is mounted</string>
-	<string name="usb_mounted_message">usb is mounted</string>
-	<string name="sd_mounted_title">sdcard is mounted</string>
-	<string name="sd_mounted_message">sdcard is mounted</string>
-	
-	<string name="usb_nomedia_notification_title">Removed USB storage</string>
-	<string name="usb_nomedia_notification_message">USB storage removed. Insert new media.</string>
-	
-	<string name="usb_badremoval_notification_title">USB storage unexpectedly removed</string>
-	<string name="usb_badremoval_notification_message">Unmount USB storage before removing to avoid data loss.</string>
-	
-	<!-- add by kinier: the usb port state notification message  --> 
-	<string name="usb_port_title">Low voltage or power</string>
-	<string name="usb_port_message">Low voltage or power:Close the USB port</string>
-	<string name="usb_port_hint">USB device does not work</string>
-	
-	<!-- add by dk -->
-	<string name="status_bar_time_am">AM</string>
-	<string name="status_bar_time_pm">PM</string>
 
 </resources>

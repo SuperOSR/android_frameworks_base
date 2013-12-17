@@ -375,8 +375,6 @@ public interface IActivityManager extends IInterface {
 
     public void dismissKeyguardOnNextActivity() throws RemoteException;
 
-	public void sendBootFastComplete() throws RemoteException;
-
     public boolean targetTaskAffinityMatchesActivity(IBinder token, String destAffinity)
             throws RemoteException;
 
@@ -696,5 +694,4 @@ public interface IActivityManager extends IInterface {
     int RELEASE_PERSISTABLE_URI_PERMISSION_TRANSACTION = IBinder.FIRST_CALL_TRANSACTION+180;
     int GET_PERSISTED_URI_PERMISSIONS_TRANSACTION = IBinder.FIRST_CALL_TRANSACTION+181;
     int APP_NOT_RESPONDING_VIA_PROVIDER_TRANSACTION = IBinder.FIRST_CALL_TRANSACTION+182;
-    int SEND_BOOT_FAST_COMPLETE_TRANSACTION = IBinder.FIRST_CALL_TRANSACTION + 183;
 }

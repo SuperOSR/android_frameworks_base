@@ -78,7 +78,6 @@ public final class PowerManagerService extends IPowerManager.Stub
 
     private static final boolean DEBUG = false;
     private static final boolean DEBUG_SPEW = DEBUG && true;
-	private static final boolean DEBUG_BOOTFAST = false;
 
     // Message: Sent when a user activity timeout occurs to update the power state.
     private static final int MSG_USER_ACTIVITY_TIMEOUT = 1;
@@ -88,8 +87,6 @@ public final class PowerManagerService extends IPowerManager.Stub
     private static final int MSG_SCREEN_ON_BLOCKER_RELEASED = 3;
     // Message: Sent to poll whether the boot animation has terminated.
     private static final int MSG_CHECK_IF_BOOT_ANIMATION_FINISHED = 4;
-
-	private static final int MSG_TEMP_WAKUP_RESLEEP = 5;
 
     // Dirty bit: mWakeLocks changed
     private static final int DIRTY_WAKE_LOCKS = 1 << 0;
@@ -131,10 +128,6 @@ public final class PowerManagerService extends IPowerManager.Stub
     // the dream ends or when unplugged.
     // User activity may brighten the screen but does not end the dream.
     private static final int WAKEFULNESS_DREAMING = 3;
-
-	//Wakefulnes: The device is not shutdown but deep sleep , pass long key wake up and show boot
-	//logo and boot animation,we call it boot fast
-	private static final int WAKEFULNESS_BOOTFAST = 4;
 
     // Summarizes the state of all active wakelocks.
     private static final int WAKE_LOCK_CPU = 1 << 0;
@@ -334,16 +327,6 @@ public final class PowerManagerService extends IPowerManager.Stub
     // True if the proximity sensor reads a positive result.
     private boolean mProximityPositive;
 
-	private boolean mBootFastStats = false;
-
-	private long mBootFastSleepClockStart;
-	
-	private long mBootFastSleepTimeStart;
-
-	private boolean mBootFastTempWakeStatus;
-
-	private boolean mBootFastWakeLockToggle;
-
     // Screen brightness setting limits.
     private int mScreenBrightnessSettingMinimum;
     private int mScreenBrightnessSettingMaximum;
@@ -392,7 +375,6 @@ public final class PowerManagerService extends IPowerManager.Stub
     private static native void nativeReleaseSuspendBlocker(String name);
     private static native void nativeSetInteractive(boolean enable);
     private static native void nativeSetAutoSuspend(boolean enable);
-	private static native void nativeGoToBootFastSleep();
 
     public PowerManagerService() {
         synchronized (mLock) {
@@ -765,6 +747,21 @@ public final class PowerManagerService extends IPowerManager.Stub
     }
 
     @Override // Binder call
+    public void updateWakeLockUids(IBinder lock, int[] uids) {
+        WorkSource ws = null;
+
+        if (uids != null) {
+            ws = new WorkSource();
+            // XXX should WorkSource have a way to set uids as an int[] instead of adding them
+            // one at a time?
+            for (int i = 0; i < uids.length; i++) {
+                ws.add(uids[i]);
+            }
+        }
+        updateWakeLockWorkSource(lock, ws);
+    }
+
+    @Override // Binder call
     public void updateWakeLockWorkSource(IBinder lock, WorkSource ws) {
         if (lock == null) {
             throw new IllegalArgumentException("lock must not be null");
@@ -902,20 +899,10 @@ public final class PowerManagerService extends IPowerManager.Stub
 
     // Called from native code.
     private void userActivityFromNative(long eventTime, int event, int flags) {
-    	if(!mBootFastStats){
-        	userActivityInternal(eventTime, event, flags, Process.SYSTEM_UID);
-    	}else{
-    		if(DEBUG_BOOTFAST)
-				Slog.d(TAG,"boot fast not allow userActivityFromNative");
-    	}
+        userActivityInternal(eventTime, event, flags, Process.SYSTEM_UID);
     }
 
     private void userActivityInternal(long eventTime, int event, int flags, int uid) {
-		if(mBootFastStats){
-			if(DEBUG_BOOTFAST)
-				Slog.d(TAG,"in boot fast mode not allow userActivity");
-				return;
-		}
         synchronized (mLock) {
             if (userActivityNoUpdateLocked(eventTime, event, flags, uid)) {
                 updatePowerStateLocked();
@@ -964,12 +951,7 @@ public final class PowerManagerService extends IPowerManager.Stub
 
         final long ident = Binder.clearCallingIdentity();
         try {
-			if(!mBootFastStats)
-            	wakeUpInternal(eventTime);
-			else{
-				if(DEBUG_BOOTFAST)
-					Slog.d(TAG,"boot fast status not allow wakeup");
-			}
+            wakeUpInternal(eventTime);
         } finally {
             Binder.restoreCallingIdentity(ident);
         }
@@ -977,12 +959,7 @@ public final class PowerManagerService extends IPowerManager.Stub
 
     // Called from native code.
     private void wakeUpFromNative(long eventTime) {
-        if(!mBootFastStats)
-            wakeUpInternal(eventTime);
-		else{
-			if(DEBUG_BOOTFAST)
-				Slog.d(TAG,"boot fast status not allow wakeUpFromNative");
-		}
+        wakeUpInternal(eventTime);
     }
 
     private void wakeUpInternal(long eventTime) {
@@ -1027,157 +1004,6 @@ public final class PowerManagerService extends IPowerManager.Stub
         return true;
     }
 
-	@Override
-	public void goToBootFastSleep(long eventTime){
-		if(DEBUG_BOOTFAST)
-			Slog.d(TAG,"goToBootFastSleep");
-		if (eventTime > SystemClock.uptimeMillis()) {
-            throw new IllegalArgumentException("event time must not be in the future");
-        }
-
-        mContext.enforceCallingOrSelfPermission(android.Manifest.permission.DEVICE_POWER, null);
-
-        final long ident = Binder.clearCallingIdentity();
-        try {
-            goToBootFastSleepInternal(eventTime);
-        } finally {
-            Binder.restoreCallingIdentity(ident);
-        }
-		
-	}
-	
-	private void goToBootFastSleepInternal(long eventTime) {
-		if(DEBUG_BOOTFAST)
-			Slog.d(TAG,"goToBootFastSleepInternal");
-        synchronized (mLock) {
-            if (goToBootFastSleepNoUpdateLocked(eventTime)) {
-				mPolicy.hideScreen(true);
-                updatePowerStateLocked();
-            }
-        }
-    }
-
-	private boolean goToBootFastSleepNoUpdateLocked(long eventTime) {
-		if(DEBUG_BOOTFAST)
-			Slog.d(TAG,"goToSleepNoUpdateLocked");
-		
-		if(mBatteryLevel<=3){
-			Slog.d(TAG,"goToBootFastSleep Battery too low real shutdown");
-			nativeShutdown();
-		}
-		
-		mDirty |= DIRTY_WAKEFULNESS;
-        mWakefulness = WAKEFULNESS_BOOTFAST;
-
-		//sendPendingNotificationsLocked();
-        //mNotifier.onGoToSleepStarted(PowerManager.GO_TO_SLEEP_REASON_USER);
-        //mSendGoToSleepFinishedNotificationWhenReady = true;
-
-		mNotifier.onBootFastSleep();
-
-		
-		mBootFastStats = true;
-		mBootFastWakeLockToggle = true;
-		mBootFastSleepClockStart = System.currentTimeMillis();
-		mBootFastSleepTimeStart = SystemClock.uptimeMillis();
-		return true;
-	}
-
-	@Override
-	public void bootFastWake(long eventTime){
-		if(DEBUG_BOOTFAST)
-			Slog.d(TAG,"bootFastWake");
-		if (eventTime > SystemClock.uptimeMillis()) {
-            throw new IllegalArgumentException("event time must not be in the future");
-        }
-
-        mContext.enforceCallingOrSelfPermission(android.Manifest.permission.DEVICE_POWER, null);
-
-        final long ident = Binder.clearCallingIdentity();
-        try {
-            bootFastWakeInternal(eventTime);
-        } finally {
-            Binder.restoreCallingIdentity(ident);
-        }
-	}
-
-	private void bootFastWakeInternal(long eventTime){
-		if(DEBUG_BOOTFAST)
-			Slog.d(TAG,"bootFastWakeInternal");
-		synchronized (mLock) {
-            if (bootFastWakeNoUpdateLocked(eventTime)) {
-                updatePowerStateLocked();
-            }
-        }
-	}
-
-	private boolean bootFastWakeNoUpdateLocked(long eventTime){
-		if(DEBUG_BOOTFAST)
-			Slog.d(TAG,"bootFastWakeNoUpdateLocked");
-		mDirty |= DIRTY_WAKEFULNESS;
-        mWakefulness = WAKEFULNESS_AWAKE;
-			mNotifier.onBootFastWake();
-		if(mBootFastTempWakeStatus)
-			mHandler.removeMessages(MSG_TEMP_WAKUP_RESLEEP);
-		userActivityNoUpdateLocked(
-                eventTime, PowerManager.USER_ACTIVITY_EVENT_OTHER, 0, Process.SYSTEM_UID);
-		mBootFastStats = false;
-		mBootFastWakeLockToggle = false;
-		return true;
-	}
-
-	@Override
-	public boolean isBootFastStatus(){
-		if(DEBUG_BOOTFAST)
-			Slog.d(TAG,"isBootFastStatus = " + mBootFastStats);
-		return mBootFastStats;
-	}
-
-	
-	@Override
-	public boolean isBootFastWakeFromStandby(){
-		if(DEBUG_BOOTFAST)
-			Slog.d(TAG,"isBootFastWakeFromStandby");
-	    long bootFastSleepTimeEnd = SystemClock.uptimeMillis();
-        long bootFastSleepClockEnd = System.currentTimeMillis();        
-        if(!mBootFastStats){
-                return false; 
-        }else{
-                long time = Math.abs(Math.abs(bootFastSleepClockEnd - mBootFastSleepClockStart) - 
-                                Math.abs(bootFastSleepTimeEnd - mBootFastSleepTimeStart));
-            mBootFastSleepClockStart = System.currentTimeMillis();
-            mBootFastSleepTimeStart = SystemClock.uptimeMillis();
-            if(DEBUG_BOOTFAST)
-                   Slog.d(TAG,"standby time = " + time);
-                if(time>2000){
-                        return true;
-                }else{
-                        return false;
-                }
-        }
-	}
-
-	
-	
-	private void tempWakeUp(){
-		mBootFastTempWakeStatus = true;
-		if(DEBUG_BOOTFAST)
-			Slog.d(TAG,"tempWakeUp current ");
-		//mPolicy.hideScreen(true);
-		wakeUpInternal(SystemClock.uptimeMillis());
-		mPolicy.showPowerCharge(mBatteryLevel);
-		mBootFastSleepClockStart = System.currentTimeMillis();
-		mBootFastSleepTimeStart = SystemClock.uptimeMillis();
-		mHandler.sendEmptyMessageDelayed(MSG_TEMP_WAKUP_RESLEEP,4500);
-		//goToBootFastSleep(SystemClock.uptimeMillis());
-		return;
-	}
-
-	private void tempWakeUpFromNative(long eventTime){
-		if(DEBUG_BOOTFAST)
-			Slog.d(TAG,"tempWakeUpFromNative");
-		tempWakeUp();
-	}
     @Override // Binder call
     public void goToSleep(long eventTime, int reason) {
         if (eventTime > SystemClock.uptimeMillis()) {
@@ -1214,7 +1040,7 @@ public final class PowerManagerService extends IPowerManager.Stub
         }
 
         if (eventTime < mLastWakeTime || mWakefulness == WAKEFULNESS_ASLEEP
-                || !mBootCompleted || !mSystemReady || mBootFastStats) {
+                || !mBootCompleted || !mSystemReady) {
             return false;
         }
 
@@ -1344,7 +1170,6 @@ public final class PowerManagerService extends IPowerManager.Stub
         // Because we might release the last suspend blocker here, we need to make sure
         // we finished everything else first!
         updateSuspendBlockerLocked();
-		updateBootFastSuspendBlockerLocked();
     }
 
     private void sendPendingNotificationsLocked() {
@@ -1393,12 +1218,7 @@ public final class PowerManagerService extends IPowerManager.Stub
                 final long now = SystemClock.uptimeMillis();
                 if (shouldWakeUpWhenPluggedOrUnpluggedLocked(wasPowered, oldPlugType,
                         dockedOnWirelessCharger)) {
-                    if(mBootFastStats&&!wasPowered&&mIsPowered){
-						tempWakeUp();
-                    }else{
-                    	if(!mBootFastStats)
-                    		wakeUpNoUpdateLocked(now);
-                    }	
+                    wakeUpNoUpdateLocked(now);
                 }
                 userActivityNoUpdateLocked(
                         now, PowerManager.USER_ACTIVITY_EVENT_OTHER, 0, Process.SYSTEM_UID);
@@ -1909,7 +1729,7 @@ public final class PowerManagerService extends IPowerManager.Stub
     }
 
     private int getDesiredScreenPowerStateLocked() {
-        if (mWakefulness == WAKEFULNESS_ASLEEP||mWakefulness == WAKEFULNESS_BOOTFAST) {
+        if (mWakefulness == WAKEFULNESS_ASLEEP) {
             return DisplayPowerRequest.SCREEN_STATE_OFF;
         }
 
@@ -1952,17 +1772,6 @@ public final class PowerManagerService extends IPowerManager.Stub
             }
         }
     };
-    
-    private void updateBootFastSuspendBlockerLocked(){
-		if(mWakeLockSuspendBlocker!=null){
-			if(mBootFastStats){
-				if(mBootFastWakeLockToggle)
-					mWakeLockSuspendBlocker.bootFastSleepRelease();
-				else
-					mWakeLockSuspendBlocker.bootFastWakeAcquire();
-			}
-		}
-	}
 
     private boolean shouldUseProximitySensorLocked() {
         return (mWakeLockSummary & WAKE_LOCK_PROXIMITY_SCREEN_OFF) != 0;
@@ -2121,8 +1930,7 @@ public final class PowerManagerService extends IPowerManager.Stub
             public void run() {
                 synchronized (this) {
                     if (shutdown) {
-                        //ShutdownThread.shutdown(mContext, confirm);
-						ShutdownThread.shutdown(mContext,confirm,mPolicy);
+                        ShutdownThread.shutdown(mContext, confirm);
                     } else {
                         ShutdownThread.reboot(mContext, reason, confirm);
                     }
@@ -2478,7 +2286,6 @@ public final class PowerManagerService extends IPowerManager.Stub
             pw.println("  mBatteryLevelWhenDreamStarted=" + mBatteryLevelWhenDreamStarted);
             pw.println("  mDockState=" + mDockState);
             pw.println("  mStayOn=" + mStayOn);
-			pw.println("  mBootFastStats=" + mBootFastStats);
             pw.println("  mProximityPositive=" + mProximityPositive);
             pw.println("  mBootCompleted=" + mBootCompleted);
             pw.println("  mSystemReady=" + mSystemReady);
@@ -2588,8 +2395,6 @@ public final class PowerManagerService extends IPowerManager.Stub
                 return "Dreaming";
             case WAKEFULNESS_NAPPING:
                 return "Napping";
-			case WAKEFULNESS_BOOTFAST:
-				return "Bootfast";
             default:
                 return Integer.toString(wakefulness);
         }
@@ -2690,11 +2495,6 @@ public final class PowerManagerService extends IPowerManager.Stub
                 case MSG_CHECK_IF_BOOT_ANIMATION_FINISHED:
                     checkIfBootAnimationFinished();
                     break;
-				case MSG_TEMP_WAKUP_RESLEEP:
-					mPolicy.hideScreen(true);
-					mBootFastTempWakeStatus= false;
-					goToBootFastSleep(SystemClock.uptimeMillis());
-					break;
             }
         }
     }
@@ -2852,22 +2652,6 @@ public final class PowerManagerService extends IPowerManager.Stub
             }
         }
 
-		@Override
-		public void bootFastSleepRelease(){
-			if(mReferenceCount > 0){
-				if(DEBUG_BOOTFAST)
-						Slog.d(TAG,"boot fast mode force release!");
-				nativeReleaseSuspendBlocker(mName);
-			}	
-		}
-		@Override
-		public void bootFastWakeAcquire(){
-			if (mReferenceCount > 0) {
-				if(DEBUG_BOOTFAST)
-					Slog.d(TAG,"boot fast mode resume wakelock!");
-               nativeAcquireSuspendBlocker(mName);
-            }
-		}
         @Override
         public String toString() {
             synchronized (this) {
@@ -2930,10 +2714,7 @@ public final class PowerManagerService extends IPowerManager.Stub
                 mBlanked = true;
                 mDisplayManagerService.blankAllDisplaysFromPowerManager();
                 nativeSetInteractive(false);
-				if(mBootFastStats)
-					nativeGoToBootFastSleep();
-				else
-                	nativeSetAutoSuspend(true);
+                nativeSetAutoSuspend(true);
             }
         }
 

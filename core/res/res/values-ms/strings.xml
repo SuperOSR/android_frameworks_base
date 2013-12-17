@@ -314,7 +314,7 @@
     <string name="permlab_stopAppSwitches" msgid="4138608610717425573">"halang pertukaran apl"</string>
     <string name="permdesc_stopAppSwitches" msgid="8262195802582255021">"Menghalang pengguna daripada bertukar kepada apl lain."</string>
     <string name="permlab_getTopActivityInfo" msgid="2537922311411546016">"dapatkan maklumat apl semasa"</string>
-    <string name="permdesc_getTopActivityInfo" msgid="2512448855496067131">"Membenarkan pemegang mendapatkan maklumat peribadi tentang permohonan semasa di latar hadapan skrin"</string>
+    <string name="permdesc_getTopActivityInfo" msgid="8153651434145132505">"Membenarkan pemegang mendapatkan maklumat peribadi tentang aplikasi dan perkhidmatan semasa di latar hadapan skrin."</string>
     <string name="permlab_runSetActivityWatcher" msgid="892239094867182656">"pantau dan kawal semua pelancaran apl"</string>
     <string name="permdesc_runSetActivityWatcher" msgid="6003603162578577406">"Membenarkan apl untuk memantau dan mengawal cara sistem melancarkan aktiviti. Apl hasad boleh menjejaskan sistem sepenuhnya. Kebenaran ini hanya diperlukan untuk pembangunan, tidak sekali-kali untuk penggunaan biasa."</string>
     <string name="permlab_broadcastPackageRemoved" msgid="2576333434893532475">"hantar siaran bahawa pakej telah dialih keluar"</string>
@@ -407,6 +407,10 @@
     <string name="permdesc_readLogs" product="default" msgid="2063438140241560443">"Membenarkan apl membaca daripada pelbagai fail log sistem. Hal ini membenarkannya menemui maklumat umum mengenai perkara yang anda lakukan dengan telefon, juga berpotensi menyertakan maklumat persendirian dan peribadi."</string>
     <string name="permlab_anyCodecForPlayback" msgid="715805555823881818">"gunakan mana-mana penyahkod media untuk main semula"</string>
     <string name="permdesc_anyCodecForPlayback" msgid="8283912488433189010">"Membenarkan apl untuk menggunakan sebarang penyahkod media yang dipasangkan untuk menyahkod main semula."</string>
+    <!-- no translation found for permlab_manageCaCertificates (1678391896786882014) -->
+    <skip />
+    <!-- no translation found for permdesc_manageCaCertificates (4015644047196937014) -->
+    <skip />
     <string name="permlab_diagnostic" msgid="8076743953908000342">"baca/tulis ke sumber yang dimiliki oleh diag"</string>
     <string name="permdesc_diagnostic" msgid="6608295692002452283">"Membenarkan apl membaca dan menulis ke sebarang sumber yang dimiliki oleh kumpulan diag; contohnya, fail dalam /dev. Hal ini berpotensi menjejaskan kestabilan dan keselamatan sistem. Perkara ini seharusnya HANYA digunakan untuk diagnosis khusus perkakasan oleh pengilang atau pengendali."</string>
     <string name="permlab_changeComponentState" msgid="6335576775711095931">"dayakan atau lumpuhkan komponen apl"</string>

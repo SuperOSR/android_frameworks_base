@@ -220,7 +220,4 @@
 
     <!-- used by DessertCase -->
     <dimen name="dessert_case_cell_size">192dp</dimen>
-    
-	<!-- add by dk -->
-	<dimen name="am_pm_font_size">12dp</dimen> 
 </resources>

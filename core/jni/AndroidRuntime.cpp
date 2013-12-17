@@ -142,7 +142,6 @@ extern int register_android_os_SystemProperties(JNIEnv *env);
 extern int register_android_os_SystemClock(JNIEnv* env);
 extern int register_android_os_Trace(JNIEnv* env);
 extern int register_android_os_FileObserver(JNIEnv *env);
-extern int register_android_os_FileUtils(JNIEnv *env);
 extern int register_android_os_UEventObserver(JNIEnv* env);
 extern int register_android_os_MemoryFile(JNIEnv* env);
 extern int register_android_net_LocalSocketImpl(JNIEnv* env);
@@ -448,7 +447,6 @@ int AndroidRuntime::startVm(JavaVM** pJavaVM, JNIEnv** pEnv)
     char heapgrowthlimitOptsBuf[sizeof("-XX:HeapGrowthLimit=")-1 + PROPERTY_VALUE_MAX];
     char heapminfreeOptsBuf[sizeof("-XX:HeapMinFree=")-1 + PROPERTY_VALUE_MAX];
     char heapmaxfreeOptsBuf[sizeof("-XX:HeapMaxFree=")-1 + PROPERTY_VALUE_MAX];
-    char gctypeOptsBuf[sizeof("-Xgc:")-1 + PROPERTY_VALUE_MAX];
     char heaptargetutilizationOptsBuf[sizeof("-XX:HeapTargetUtilization=")-1 + PROPERTY_VALUE_MAX];
     char jitcodecachesizeOptsBuf[sizeof("-Xjitcodecachesize:")-1 + PROPERTY_VALUE_MAX];
     char extraOptsBuf[PROPERTY_VALUE_MAX];
@@ -582,13 +580,6 @@ int AndroidRuntime::startVm(JavaVM** pJavaVM, JNIEnv** pEnv)
     if (strcmp(propBuf, "true") == 0) {
       opt.optionString = "-XX:LowMemoryMode";
       mOptions.add(opt);
-    }
-
-    strcpy(gctypeOptsBuf, "-Xgc:");
-    property_get("dalvik.vm.gctype", gctypeOptsBuf+5, "");
-    if (gctypeOptsBuf[5] != '\0') {
-        opt.optionString = gctypeOptsBuf;
-        mOptions.add(opt);
     }
 
     /*
@@ -1177,7 +1168,6 @@ static const RegJNIRec gRegJNI[] = {
     REG_JNI(register_android_database_SQLiteDebug),
     REG_JNI(register_android_os_Debug),
     REG_JNI(register_android_os_FileObserver),
-    REG_JNI(register_android_os_FileUtils),
     REG_JNI(register_android_os_MessageQueue),
     REG_JNI(register_android_os_SELinux),
     REG_JNI(register_android_os_Trace),

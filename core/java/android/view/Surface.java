@@ -45,9 +45,6 @@ public class Surface implements Parcelable {
     private static native boolean nativeIsConsumerRunningBehind(int nativeObject);
     private static native int nativeReadFromParcel(int nativeObject, Parcel source);
     private static native void nativeWriteToParcel(int nativeObject, Parcel dest);
-    
-    private static native int nativeSetDisplayParameter(
-            IBinder displayToken, int cmd, int para0, int para1, int para2);
 
     public static final Parcelable.Creator<Surface> CREATOR =
             new Parcelable.Creator<Surface>() {
@@ -494,13 +491,5 @@ public class Surface implements Parcelable {
             }
             mOrigMatrix.set(m);
         }
-    }
-
-    /** @hide */
-    public static int setDisplayParameter(IBinder displayToken, int cmd, int para0, int para1, int para2) {
-        if (displayToken == null) {
-            throw new IllegalArgumentException("displayToken must not be null");
-        }
-        return nativeSetDisplayParameter(displayToken, cmd, para0, para1, para2);
     }
 }

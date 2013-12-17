@@ -880,32 +880,6 @@ static void android_hardware_Camera_enableFocusMoveCallback(JNIEnv *env, jobject
     }
 }
 
-/**********************************************************************
-*
-*add for r/w file in the HAL of android 4.2.
-*
-*by fuqiang.
-*
-**********************************************************************/
-static void android_hardware_Camera_setFD(JNIEnv *env, jobject thiz, jobject fileDescriptor)
-{
-    ALOGV("setFD");
-    if (fileDescriptor == NULL) {
-        jniThrowException(env, "java/lang/IllegalArgumentException", NULL);
-        return;
-    }
-	
-    int fd = jniGetFDFromFileDescriptor(env, fileDescriptor);
-
-	sp<Camera> camera = get_native_camera(env, thiz, NULL);
-    if (camera == 0) return;
-
-    if (camera->setFd(fd) != NO_ERROR) {
-        jniThrowRuntimeException(env, "setFd failed");
-        return;
-    }
-}
-
 //-------------------------------------------------
 
 static JNINativeMethod camMethods[] = {
@@ -990,9 +964,6 @@ static JNINativeMethod camMethods[] = {
   { "enableFocusMoveCallback",
     "(I)V",
     (void *)android_hardware_Camera_enableFocusMoveCallback},
-  { "setFD",
-    "(Ljava/io/FileDescriptor;)V",
-    (void *)android_hardware_Camera_setFD},
 };
 
 struct field {

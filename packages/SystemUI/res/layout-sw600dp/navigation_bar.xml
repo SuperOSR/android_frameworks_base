@@ -53,13 +53,6 @@
                 android:layout_height="match_parent"
                 android:layout_weight="1"
                 />
-            <com.android.systemui.statusbar.policy.KeyButtonView android:id="@+id/volume_down"
-                android:layout_width="128dp" android:paddingRight="8dp"
-                android:layout_height="match_parent"
-                android:src="@drawable/ic_sysbar_volume_down"
-                systemui:keyCode="25"
-                systemui:glowBackground="@drawable/ic_sysbar_highlight"
-                />
             <com.android.systemui.statusbar.policy.KeyButtonView android:id="@+id/back"
                 android:layout_width="128dp" android:paddingStart="25dp" android:paddingEnd="25dp"
                 android:layout_height="match_parent"
@@ -86,13 +79,6 @@
                 android:layout_weight="0"
                 systemui:glowBackground="@drawable/ic_sysbar_highlight"
                 android:contentDescription="@string/accessibility_recent"
-                />
-            <com.android.systemui.statusbar.policy.KeyButtonView android:id="@+id/volume_up"
-                android:layout_width="128dp" android:paddingLeft="8dp"
-                android:layout_height="match_parent"
-                android:src="@drawable/ic_sysbar_volume_up"
-                systemui:keyCode="24"
-                systemui:glowBackground="@drawable/ic_sysbar_highlight"
                 />
             <Space 
                 android:layout_width="match_parent"
@@ -143,13 +129,6 @@
             <ImageView
                 android:layout_width="128dp" android:paddingStart="25dp" android:paddingEnd="25dp"
                 android:layout_marginEnd="40dp"
-                android:layout_height="match_parent"
-                android:src="@drawable/ic_sysbar_lights_out_dot_small"
-                android:scaleType="center"
-                android:layout_weight="0"
-                />
-            <ImageView
-                android:layout_width="128dp" android:paddingLeft="8dp" 
                 android:layout_height="match_parent"
                 android:src="@drawable/ic_sysbar_lights_out_dot_small"
                 android:scaleType="center"
@@ -216,13 +195,6 @@
                 android:layout_height="match_parent"
                 android:layout_weight="1"
                 />
-	    <com.android.systemui.statusbar.policy.KeyButtonView android:id="@+id/volume_down"
-		android:layout_width="162dp" android:paddingRight="4dp"
-		android:layout_height="match_parent"
-		android:src="@drawable/ic_sysbar_volume_down"
-		systemui:keyCode="25"
-		systemui:glowBackground="@drawable/ic_sysbar_highlight"
-		/>
             <com.android.systemui.statusbar.policy.KeyButtonView android:id="@+id/back"
                 android:layout_width="162dp" android:paddingStart="42dp" android:paddingEnd="42dp"
                 android:layout_height="match_parent"
@@ -250,13 +222,6 @@
                 systemui:glowBackground="@drawable/ic_sysbar_highlight"
                 android:contentDescription="@string/accessibility_recent"
                 />
-	    <com.android.systemui.statusbar.policy.KeyButtonView android:id="@+id/volume_up"
-		android:layout_width="162dp" android:paddingLeft="4dp"
-		android:layout_height="match_parent"
-		android:src="@drawable/ic_sysbar_volume_up"
-		systemui:keyCode="24"
-		systemui:glowBackground="@drawable/ic_sysbar_highlight"
-		/>
             <Space 
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
@@ -306,13 +271,6 @@
             <ImageView
                 android:layout_width="162dp" android:paddingStart="42dp" android:paddingEnd="42dp"
                 android:layout_marginEnd="40dp"
-                android:layout_height="match_parent"
-                android:src="@drawable/ic_sysbar_lights_out_dot_small"
-                android:scaleType="center"
-                android:layout_weight="0"
-                />
-            <ImageView
-                android:layout_width="162dp" android:paddingLeft="4dp" 
                 android:layout_height="match_parent"
                 android:src="@drawable/ic_sysbar_lights_out_dot_small"
                 android:scaleType="center"

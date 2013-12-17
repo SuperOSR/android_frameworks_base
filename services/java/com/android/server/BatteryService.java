@@ -34,11 +34,9 @@ import android.os.IBatteryPropertiesListener;
 import android.os.IBatteryPropertiesRegistrar;
 import android.os.IBinder;
 import android.os.DropBoxManager;
-import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemClock;
-import android.os.SystemProperties;
 import android.os.UEventObserver;
 import android.os.UserHandle;
 import android.provider.Settings;
@@ -100,7 +98,6 @@ public final class BatteryService extends Binder {
 
     // This should probably be exposed in the API, though it's not critical
     private static final int BATTERY_PLUGGED_NONE = 0;
-	private static final int BOOT_FAST_REAL_SHUT_DOWN_LEVEL = 5;
 
     private final Context mContext;
     private final IBatteryStats mBatteryStats;
@@ -139,8 +136,6 @@ public final class BatteryService extends Binder {
 
     private BatteryListener mBatteryPropertiesListener;
     private IBatteryPropertiesRegistrar mBatteryPropertiesRegistrar;
-    
-    private native void native_shutdown();
 
     public BatteryService(Context context, LightsService lights) {
         mContext = context;
@@ -254,7 +249,6 @@ public final class BatteryService extends Binder {
                 @Override
                 public void run() {
                     if (ActivityManagerNative.isSystemReady()) {
-						SystemProperties.set("sys.battery_zero","1");
                         Intent intent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
                         intent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
                         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -265,30 +259,6 @@ public final class BatteryService extends Binder {
         }
     }
 
-    private void shutdownIfInBootFastModeLocked() {
-        // shut down gracefully if our battery is boot fast mode and critically low and we are not powered.
-        // wait until the system has booted before attempting to display the shutdown dialog.
-       	if (ActivityManagerNative.isSystemReady()) {
-			final PowerManager power = (PowerManager)mContext.getSystemService(Context.POWER_SERVICE);
-			boolean bootstats = power.isBootFastStatus();
-        	if (mBatteryLevel < BOOT_FAST_REAL_SHUT_DOWN_LEVEL && !isPoweredLocked(BatteryManager.BATTERY_PLUGGED_ANY) && bootstats) {
-            	mHandler.post(new Runnable() {
-                	@Override
-                	public void run() {
-                			Slog.d(TAG,"shutdownIfInBootFastModeLocked now shutdown!");
-							native_shutdown(); //acquire a wakelock named battery
-							if (ActivityManagerNative.isSystemReady()) {
-								SystemProperties.set("sys.battery_zero","1");
-                        		Intent intent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
-                        		intent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
-                        		intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        		mContext.startActivityAsUser(intent, UserHandle.CURRENT);
-                    		}
-                	}
-            	});
-        	}
-       	}
-    }
     private void shutdownIfOverTempLocked() {
         // shut down gracefully if temperature is too high (> 68.0C by default)
         // wait until the system has booted before attempting to display the
@@ -298,7 +268,6 @@ public final class BatteryService extends Binder {
                 @Override
                 public void run() {
                     if (ActivityManagerNative.isSystemReady()) {
-						SystemProperties.set("sys.temperature_high","1");
                         Intent intent = new Intent(Intent.ACTION_REQUEST_SHUTDOWN);
                         intent.putExtra(Intent.EXTRA_KEY_CONFIRM, false);
                         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -362,7 +331,6 @@ public final class BatteryService extends Binder {
         }
 
         shutdownIfNoPowerLocked();
-		shutdownIfInBootFastModeLocked();
         shutdownIfOverTempLocked();
 
         if (mBatteryProps.batteryStatus != mLastBatteryStatus ||

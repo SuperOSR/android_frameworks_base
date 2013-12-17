@@ -64,7 +64,6 @@ import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.Vibrator;
-import android.os.Process;
 import android.provider.Settings;
 import android.provider.Settings.System;
 import android.speech.RecognizerIntent;
@@ -213,8 +212,7 @@ public class AudioService extends IAudioService.Stub {
         15, // STREAM_BLUETOOTH_SCO
         7,  // STREAM_SYSTEM_ENFORCED
         15, // STREAM_DTMF
-        15,  // STREAM_TTS
-        15  // STREAM_FM
+        15  // STREAM_TTS
     };
     /* mStreamVolumeAlias[] indicates for each stream if it uses the volume settings
      * of another stream: This avoids multiplying the volume settings for hidden
@@ -234,8 +232,7 @@ public class AudioService extends IAudioService.Stub {
         AudioSystem.STREAM_BLUETOOTH_SCO,   // STREAM_BLUETOOTH_SCO
         AudioSystem.STREAM_RING,            // STREAM_SYSTEM_ENFORCED
         AudioSystem.STREAM_RING,            // STREAM_DTMF
-        AudioSystem.STREAM_MUSIC,            // STREAM_TTS
-        AudioSystem.STREAM_FM		     // STREAM_FM
+        AudioSystem.STREAM_MUSIC            // STREAM_TTS
     };
     private final int[] STREAM_VOLUME_ALIAS_NON_VOICE = new int[] {
         AudioSystem.STREAM_VOICE_CALL,      // STREAM_VOICE_CALL
@@ -247,8 +244,7 @@ public class AudioService extends IAudioService.Stub {
         AudioSystem.STREAM_BLUETOOTH_SCO,   // STREAM_BLUETOOTH_SCO
         AudioSystem.STREAM_MUSIC,           // STREAM_SYSTEM_ENFORCED
         AudioSystem.STREAM_MUSIC,           // STREAM_DTMF
-        AudioSystem.STREAM_MUSIC,            // STREAM_TTS
-        AudioSystem.STREAM_FM  		     // STREAM_FM
+        AudioSystem.STREAM_MUSIC            // STREAM_TTS
     };
     private int[] mStreamVolumeAlias;
 
@@ -282,8 +278,7 @@ public class AudioService extends IAudioService.Stub {
             "STREAM_BLUETOOTH_SCO",
             "STREAM_SYSTEM_ENFORCED",
             "STREAM_DTMF",
-            "STREAM_TTS",
-            "STREAM_FM"
+            "STREAM_TTS"
     };
 
     private final AudioSystem.ErrorCallback mAudioSystemCallback = new AudioSystem.ErrorCallback() {
@@ -431,7 +426,7 @@ public class AudioService extends IAudioService.Stub {
     public final static int STREAM_REMOTE_MUSIC = -200;
 
     // Devices for which the volume is fixed and VolumePanel slider should be disabled
-    final int mFixedVolumeDevices = //AudioSystem.DEVICE_OUT_AUX_DIGITAL |
+    final int mFixedVolumeDevices = AudioSystem.DEVICE_OUT_AUX_DIGITAL |
             AudioSystem.DEVICE_OUT_DGTL_DOCK_HEADSET |
             AudioSystem.DEVICE_OUT_ANLG_DOCK_HEADSET |
             AudioSystem.DEVICE_OUT_ALL_USB;
@@ -1577,14 +1572,6 @@ public class AudioService extends IAudioService.Stub {
         }
 
         int newModeOwnerPid = 0;
-	int callingPid = Binder.getCallingPid();
-	int callingUserID = Process.getUidForPid(callingPid);
-
-	//Log.d(TAG, "in audioService, CallingPid=" + callingPid + " getUidForPid=" + callingUserID );
-	if ((mode == AudioSystem.MODE_IN_CALL) && (callingUserID > 2000)){ //#define AID_SHELL    2000
-		mode = AudioSystem.MODE_NORMAL;
-	}
-
         synchronized(mSetModeDeathHandlers) {
             if (mode == AudioSystem.MODE_CURRENT) {
                 mode = mMode;
@@ -2672,10 +2659,6 @@ public class AudioService extends IAudioService.Stub {
                     if (DEBUG_VOL)
                         Log.v(TAG, "getActiveStreamType: Forcing STREAM_MUSIC stream active");
                     return AudioSystem.STREAM_MUSIC;
-                } else if (getMode() == AudioSystem.MODE_FM ) {
-                    if (DEBUG_VOL)
-                        Log.v(TAG, "getActiveStreamType: Forcing STREAM_FM stream active");
-                    return AudioSystem.STREAM_FM;
                 } else
                     if (mMediaFocusControl.checkUpdateRemoteStateIfActive(AudioSystem.STREAM_MUSIC))
                     {
@@ -2930,12 +2913,10 @@ public class AudioService extends IAudioService.Stub {
             int index;
             if (isMuted()) {
                 index = 0;
-            } else if (mStreamVolumeAlias[mStreamType] == AudioSystem.STREAM_MUSIC &&
-                       (device & AudioSystem.DEVICE_OUT_ALL_A2DP) != 0 &&
+            } else if ((device & AudioSystem.DEVICE_OUT_ALL_A2DP) != 0 &&
                        mAvrcpAbsVolSupported) {
                 index = (mIndexMax + 5)/10;
-            }
-            else {
+            } else {
                 index = (getIndex(device) + 5)/10;
             }
             AudioSystem.setStreamVolumeIndex(mStreamType, index, device);
@@ -2960,6 +2941,9 @@ public class AudioService extends IAudioService.Stub {
                 if (device != AudioSystem.DEVICE_OUT_DEFAULT) {
                     if (isMuted()) {
                         index = 0;
+                    } else if ((device & AudioSystem.DEVICE_OUT_ALL_A2DP) != 0 &&
+                            mAvrcpAbsVolSupported) {
+                        index = (mIndexMax + 5)/10;
                     } else {
                         index = ((Integer)entry.getValue() + 5)/10;
                     }
@@ -3232,7 +3216,14 @@ public class AudioService extends IAudioService.Stub {
             for (int streamType = numStreamTypes - 1; streamType >= 0; streamType--) {
                 if (streamType != streamState.mStreamType &&
                         mStreamVolumeAlias[streamType] == streamState.mStreamType) {
-                    mStreamStates[streamType].applyDeviceVolume(getDeviceForStream(streamType));
+                    // Make sure volume is also maxed out on A2DP device for aliased stream
+                    // that may have a different device selected
+                    int streamDevice = getDeviceForStream(streamType);
+                    if ((device != streamDevice) && mAvrcpAbsVolSupported &&
+                            ((device & AudioSystem.DEVICE_OUT_ALL_A2DP) != 0)) {
+                        mStreamStates[streamType].applyDeviceVolume(device);
+                    }
+                    mStreamStates[streamType].applyDeviceVolume(streamDevice);
                 }
             }
 
@@ -3860,9 +3851,12 @@ public class AudioService extends IAudioService.Stub {
         // address is not used for now, but may be used when multiple a2dp devices are supported
         synchronized (mA2dpAvrcpLock) {
             mAvrcpAbsVolSupported = support;
-            VolumeStreamState streamState = mStreamStates[AudioSystem.STREAM_MUSIC];
             sendMsg(mAudioHandler, MSG_SET_DEVICE_VOLUME, SENDMSG_QUEUE,
-                    AudioSystem.DEVICE_OUT_BLUETOOTH_A2DP, 0, streamState, 0);
+                    AudioSystem.DEVICE_OUT_BLUETOOTH_A2DP, 0,
+                    mStreamStates[AudioSystem.STREAM_MUSIC], 0);
+            sendMsg(mAudioHandler, MSG_SET_DEVICE_VOLUME, SENDMSG_QUEUE,
+                    AudioSystem.DEVICE_OUT_BLUETOOTH_A2DP, 0,
+                    mStreamStates[AudioSystem.STREAM_RING], 0);
         }
     }
 

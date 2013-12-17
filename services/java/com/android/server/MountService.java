@@ -62,6 +62,7 @@ import android.util.Xml;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.app.IMediaContainerService;
+import com.android.internal.util.IndentingPrintWriter;
 import com.android.internal.util.Preconditions;
 import com.android.internal.util.XmlUtils;
 import com.android.server.NativeDaemonConnector.Command;
@@ -173,6 +174,8 @@ class MountService extends IMountService.Stub
          * 600 series - Unsolicited broadcasts.
          */
         public static final int VolumeStateChange              = 605;
+        public static final int VolumeUuidChange               = 613;
+        public static final int VolumeUserLabelChange          = 614;
         public static final int VolumeDiskInserted             = 630;
         public static final int VolumeDiskRemoved              = 631;
         public static final int VolumeBadRemoval               = 632;
@@ -203,8 +206,6 @@ class MountService extends IMountService.Stub
     private final HashMap<String, String> mVolumeStates = Maps.newHashMap();
 
     private volatile boolean mSystemReady = false;
-
-	private boolean mUsbConnent = false;
 
     private PackageManagerService                 mPms;
     private boolean                               mUmsEnabling;
@@ -603,24 +604,7 @@ class MountService extends IMountService.Stub
         public void onReceive(Context context, Intent intent) {
             boolean available = (intent.getBooleanExtra(UsbManager.USB_CONNECTED, false) &&
                     intent.getBooleanExtra(UsbManager.USB_FUNCTION_MASS_STORAGE, false));
-		    mUsbConnent =  available;
-			//usb status changing,check volume to change usb notification
-            int size = mVolumes.size();
-		    for(int i=0; i<size; i++) {
-			  StorageVolume volume = mVolumes.get(i);
-			  String path  = volume.getPath();
-			  String state = mVolumeStates.get(path);
-              if(volume.allowMassStorage()){
-                 notifyShareAvailabilityChange(available);
-			  }
-			  if(!mUsbConnent&&volume.allowMassStorage()){
-			  	  //usb is disconnented,we should disabled UMS
-				 setUsbMassStorageEnabled(false);
-			  }
-			}
-            //boolean available = (intent.getBooleanExtra(UsbManager.USB_CONNECTED, false) &&
-            //        intent.getBooleanExtra(UsbManager.USB_FUNCTION_MASS_STORAGE, false));
-            //notifyShareAvailabilityChange(available);
+            notifyShareAvailabilityChange(available);
         }
     };
 
@@ -680,6 +664,7 @@ class MountService extends IMountService.Stub
         final String oldState;
         synchronized (mVolumesLock) {
             oldState = mVolumeStates.put(path, state);
+            volume.setState(state);
         }
 
         if (state.equals(oldState)) {
@@ -721,22 +706,6 @@ class MountService extends IMountService.Stub
                 }
             }
         }
-        /*
-		//check that is there volumes surpport mass storage,and then change the usb notification
-		if(state.equals(Environment.MEDIA_UNMOUNTED)||state.equals(Environment.MEDIA_MOUNTED)){
-		   boolean usbNotification = false;
-		   int size = mVolumes.size();
-		   for(int i=0; i<size; i++) {
-			    StorageVolume volumed = mVolumes.get(i);
-			    String pathed  = volumed.getPath();
-			    String stated = mVolumeStates.get(pathed);
-                if(volumed.allowMassStorage()&&Environment.MEDIA_MOUNTED.equals(stated)){
-                  usbNotification = true;
-			    }
-			}
-		    notifyShareAvailabilityChange(usbNotification&&mUsbConnent);
-		}
-		*/
     }
 
     /**
@@ -836,6 +805,26 @@ class MountService extends IMountService.Stub
             notifyVolumeStateChange(
                     cooked[2], cooked[3], Integer.parseInt(cooked[7]),
                             Integer.parseInt(cooked[10]));
+        } else if (code == VoldResponseCode.VolumeUuidChange) {
+            // Format: nnn <label> <path> <uuid>
+            final String path = cooked[2];
+            final String uuid = (cooked.length > 3) ? cooked[3] : null;
+
+            final StorageVolume vol = mVolumesByPath.get(path);
+            if (vol != null) {
+                vol.setUuid(uuid);
+            }
+
+        } else if (code == VoldResponseCode.VolumeUserLabelChange) {
+            // Format: nnn <label> <path> <label>
+            final String path = cooked[2];
+            final String userLabel = (cooked.length > 3) ? cooked[3] : null;
+
+            final StorageVolume vol = mVolumesByPath.get(path);
+            if (vol != null) {
+                vol.setUserLabel(userLabel);
+            }
+
         } else if ((code == VoldResponseCode.VolumeDiskInserted) ||
                    (code == VoldResponseCode.VolumeDiskRemoved) ||
                    (code == VoldResponseCode.VolumeBadRemoval)) {
@@ -888,7 +877,7 @@ class MountService extends IMountService.Stub
                 /* Send the media unmounted event first */
                 if (DEBUG_EVENTS) Slog.i(TAG, "Sending unmounted event first");
                 updatePublicVolumeState(volume, Environment.MEDIA_UNMOUNTED);
-                sendStorageIntent(Intent.ACTION_MEDIA_UNMOUNTED, volume, UserHandle.ALL);
+                sendStorageIntent(Environment.MEDIA_UNMOUNTED, volume, UserHandle.ALL);
 
                 if (DEBUG_EVENTS) Slog.i(TAG, "Sending media removed");
                 updatePublicVolumeState(volume, Environment.MEDIA_REMOVED);
@@ -1265,6 +1254,7 @@ class MountService extends IMountService.Stub
 
                             // Until we hear otherwise, treat as unmounted
                             mVolumeStates.put(volume.getPath(), Environment.MEDIA_UNMOUNTED);
+                            volume.setState(Environment.MEDIA_UNMOUNTED);
                         }
                     }
 
@@ -1308,6 +1298,7 @@ class MountService extends IMountService.Stub
         } else {
             // Place stub status for early callers to find
             mVolumeStates.put(volume.getPath(), Environment.MEDIA_MOUNTED);
+            volume.setState(Environment.MEDIA_MOUNTED);
         }
     }
 
@@ -1365,21 +1356,11 @@ class MountService extends IMountService.Stub
         mContext.registerReceiver(mUserReceiver, userFilter, null, mHandler);
 
         // Watch for USB changes on primary volume
-        /*final StorageVolume primary = getPrimaryPhysicalVolume();
+        final StorageVolume primary = getPrimaryPhysicalVolume();
         if (primary != null && primary.allowMassStorage()) {
             mContext.registerReceiver(
                     mUsbReceiver, new IntentFilter(UsbManager.ACTION_USB_STATE), null, mHandler);
-        }*/
-        // if volume support mass storage,we should listen to the states of usb
-        int size = mVolumes.size();
-		for(int i=0; i<size; i++) {
-			StorageVolume volume = mVolumes.get(i);
-            if(volume.allowMassStorage()&&!volume.isEmulated()){
-				mContext.registerReceiver(
-                    mUsbReceiver, new IntentFilter(UsbManager.ACTION_USB_STATE), null, mHandler);
-				break;
-			}
-		}
+        }
 
         // Watch for idle maintenance changes
         IntentFilter idleMaintenanceFilter = new IntentFilter();
@@ -1524,22 +1505,15 @@ class MountService extends IMountService.Stub
         waitForReady();
         validatePermission(android.Manifest.permission.MOUNT_UNMOUNT_FILESYSTEMS);
 
-        //final StorageVolume primary = getPrimaryPhysicalVolume();
-        //if (primary == null) return;
+        final StorageVolume primary = getPrimaryPhysicalVolume();
+        if (primary == null) return;
 
         // TODO: Add support for multiple share methods
-        int size = mVolumes.size();
-		for(int i=0; i<size; i++) {
 
         /*
          * If the volume is mounted and we're enabling then unmount it
          */
-        StorageVolume volume = mVolumes.get(i);
-	    if( !volume.allowMassStorage())
-	        continue;
-			
-        //String path = primary.getPath();
-		String path = volume.getPath();
+        String path = primary.getPath();
         String vs = getVolumeState(path);
         String method = "ums";
         if (enable && vs.equals(Environment.MEDIA_MOUNTED)) {
@@ -1553,7 +1527,7 @@ class MountService extends IMountService.Stub
         /*
          * If we disabled UMS then mount the volume
          */
-        if (!enable && vs.equals(Environment.MEDIA_SHARED)) {
+        if (!enable) {
             doShareUnshareVolume(path, method, enable);
             if (doMountVolume(path) != StorageResultCode.OperationSucceeded) {
                 Slog.e(TAG, "Failed to remount " + path +
@@ -1565,26 +1539,17 @@ class MountService extends IMountService.Stub
                  */
             }
         }
-		}
     }
 
     public boolean isUsbMassStorageEnabled() {
         waitForReady();
 
-        /*final StorageVolume primary = getPrimaryPhysicalVolume();
+        final StorageVolume primary = getPrimaryPhysicalVolume();
         if (primary != null) {
             return doGetVolumeShared(primary.getPath(), "ums");
         } else {
             return false;
-        }*/
-        //we should scan all volumes to make sure the massStorage is enable
-        for(int i=0;i<mVolumes.size();i++){
-            StorageVolume volume = mVolumes.get(i);
-			if(volume.allowMassStorage()&&doGetVolumeShared(volume.getPath(),"ums")){
-                return true;
-			}
-		}
-		return false;
+        }
     }
 
     /**
@@ -2804,54 +2769,59 @@ class MountService extends IMountService.Stub
     }
 
     @Override
-    protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        if (mContext.checkCallingOrSelfPermission(android.Manifest.permission.DUMP) != PackageManager.PERMISSION_GRANTED) {
-            pw.println("Permission Denial: can't dump ActivityManager from from pid="
-                    + Binder.getCallingPid() + ", uid=" + Binder.getCallingUid()
-                    + " without permission " + android.Manifest.permission.DUMP);
-            return;
-        }
+    protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
+        mContext.enforceCallingOrSelfPermission(android.Manifest.permission.DUMP, TAG);
+
+        final IndentingPrintWriter pw = new IndentingPrintWriter(writer, "  ", 160);
 
         synchronized (mObbMounts) {
-            pw.println("  mObbMounts:");
-
-            final Iterator<Entry<IBinder, List<ObbState>>> binders = mObbMounts.entrySet().iterator();
+            pw.println("mObbMounts:");
+            pw.increaseIndent();
+            final Iterator<Entry<IBinder, List<ObbState>>> binders = mObbMounts.entrySet()
+                    .iterator();
             while (binders.hasNext()) {
                 Entry<IBinder, List<ObbState>> e = binders.next();
-                pw.print("    Key="); pw.println(e.getKey().toString());
+                pw.println(e.getKey() + ":");
+                pw.increaseIndent();
                 final List<ObbState> obbStates = e.getValue();
                 for (final ObbState obbState : obbStates) {
-                    pw.print("      "); pw.println(obbState.toString());
+                    pw.println(obbState);
                 }
+                pw.decreaseIndent();
             }
+            pw.decreaseIndent();
 
-            pw.println("");
-            pw.println("  mObbPathToStateMap:");
+            pw.println();
+            pw.println("mObbPathToStateMap:");
+            pw.increaseIndent();
             final Iterator<Entry<String, ObbState>> maps = mObbPathToStateMap.entrySet().iterator();
             while (maps.hasNext()) {
                 final Entry<String, ObbState> e = maps.next();
-                pw.print("    "); pw.print(e.getKey());
-                pw.print(" -> "); pw.println(e.getValue().toString());
+                pw.print(e.getKey());
+                pw.print(" -> ");
+                pw.println(e.getValue());
             }
+            pw.decreaseIndent();
         }
 
-        pw.println("");
-
         synchronized (mVolumesLock) {
-            pw.println("  mVolumes:");
-
-            final int N = mVolumes.size();
-            for (int i = 0; i < N; i++) {
-                final StorageVolume v = mVolumes.get(i);
-                pw.print("    ");
-                pw.println(v.toString());
-                pw.println("      state=" + mVolumeStates.get(v.getPath()));
+            pw.println();
+            pw.println("mVolumes:");
+            pw.increaseIndent();
+            for (StorageVolume volume : mVolumes) {
+                pw.println(volume);
+                pw.increaseIndent();
+                pw.println("Current state: " + mVolumeStates.get(volume.getPath()));
+                pw.decreaseIndent();
             }
+            pw.decreaseIndent();
         }
 
         pw.println();
-        pw.println("  mConnection:");
+        pw.println("mConnection:");
+        pw.increaseIndent();
         mConnector.dump(fd, pw, args);
+        pw.decreaseIndent();
     }
 
     /** {@inheritDoc} */

@@ -91,10 +91,7 @@ public class UsbStorageActivity extends Activity
         @Override
         public void onStorageStateChanged(String path, String oldState, String newState) {
             final boolean on = newState.equals(Environment.MEDIA_SHARED);
-			final boolean remove = newState.equals(Environment.MEDIA_REMOVED);
             switchDisplay(on);
-			//Volume remove,should finish Activity
-			if(remove)finish();
         }
     };
 

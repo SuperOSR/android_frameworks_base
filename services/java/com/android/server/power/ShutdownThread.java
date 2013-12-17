@@ -18,11 +18,6 @@
 package com.android.server.power;
 
 import android.app.ActivityManagerNative;
-import android.app.Activity;
-import android.app.ActivityManager;
-import android.app.Application;
-import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageManager;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.app.IActivityManager;
@@ -37,8 +32,6 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Handler;
-import android.os.UserHandle;
-import android.os.Message;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.ServiceManager;
@@ -51,25 +44,9 @@ import android.os.storage.IMountService;
 import android.os.storage.IMountShutdownObserver;
 
 import com.android.internal.telephony.ITelephony;
-import android.provider.Settings;
 
 import android.util.Log;
 import android.view.WindowManager;
-import android.view.Surface;
-
-import android.media.AmrInputStream;
-import android.media.MediaPlayer;
-import android.view.IWindowManager;
-import android.view.WindowManagerPolicy;
-import java.util.ArrayList;
-import java.util.List;
-import java.io.IOException;
-import java.lang.InterruptedException;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.InputStream;
-import java.lang.StringBuffer;
-import dalvik.system.Zygote;
 
 public final class ShutdownThread extends Thread {
     // constants
@@ -83,20 +60,12 @@ public final class ShutdownThread extends Thread {
     // length of vibration before shutting down
     private static final int SHUTDOWN_VIBRATE_MS = 500;
     
-    private static final int CLOSE_PROCESS_DIALOG = 2;
-    
-    private static final int MAX_SERVICES = 100;
-    
-    private static final int MAX_ACTIVITYS = 100;
-    
-    private static final int BOOTFAST_WAIT_TIME = 1000;
     // state tracking
     private static Object sIsStartedGuard = new Object();
     private static boolean sIsStarted = false;
     
     private static boolean mReboot;
     private static boolean mRebootSafeMode;
-	private static WindowManagerPolicy mPolicy;
     private static String mRebootReason;
 
     // Provides shutdown assurance in case the system_server is killed
@@ -104,12 +73,9 @@ public final class ShutdownThread extends Thread {
 
     // Indicates whether we are rebooting into safe mode
     public static final String REBOOT_SAFEMODE_PROPERTY = "persist.sys.safemode";
-    
-    //wether we have radio
-    private static final String PROPERTY_EMBEDED_TELEPHONY = "ro.sw.embeded.telephony";
 
     // static instance of this thread
-    private static ShutdownThread sInstance;
+    private static final ShutdownThread sInstance = new ShutdownThread();
     
     private final Object mActionDoneSync = new Object();
     private boolean mActionDone;
@@ -119,9 +85,7 @@ public final class ShutdownThread extends Thread {
     private PowerManager.WakeLock mScreenWakeLock;
     private Handler mHandler;
 
-    private static boolean mBootFastEnable = false;
-
-	private static AlertDialog sConfirmDialog;
+    private static AlertDialog sConfirmDialog;
     
     private ShutdownThread() {
     }
@@ -139,13 +103,6 @@ public final class ShutdownThread extends Thread {
         mRebootSafeMode = false;
         shutdownInner(context, confirm);
     }
-
-	public static void shutdown(final Context context, boolean confirm,WindowManagerPolicy policy){
-		mReboot = false;
-        mRebootSafeMode = false;
-		mPolicy = policy;
-        shutdownInner(context, confirm);
-	}
 
     static void shutdownInner(final Context context, boolean confirm) {
         // ensure that only one thread is trying to power down.
@@ -172,8 +129,7 @@ public final class ShutdownThread extends Thread {
             if (sConfirmDialog != null) {
                 sConfirmDialog.dismiss();
             }
-			if(mRebootSafeMode == true){
-            	sConfirmDialog = new AlertDialog.Builder(context)
+            sConfirmDialog = new AlertDialog.Builder(context)
                     .setTitle(mRebootSafeMode
                             ? com.android.internal.R.string.reboot_safemode_title
                             : com.android.internal.R.string.power_off)
@@ -185,51 +141,6 @@ public final class ShutdownThread extends Thread {
                     })
                     .setNegativeButton(com.android.internal.R.string.no, null)
                     .create();
-			}else{
-				if(Settings.Global.getInt(context.getContentResolver(), Settings.Global.DEVICE_PROVISIONED, 1)==1&&
-					SystemProperties.getBoolean("ro.sys.bootfast", false)){
-					boolean [] enableBootFast = {false};
-					enableBootFast[0] = Settings.System.getIntForUser(context.getContentResolver(), Settings.System.BOOT_FAST_ENABLE, 0,UserHandle.USER_CURRENT)==0?false:true;
-					sConfirmDialog = new AlertDialog.Builder(context)
-                    	.setTitle(mRebootSafeMode
-                            ? com.android.internal.R.string.reboot_safemode_title
-                            : com.android.internal.R.string.power_off)
-                    	.setMultiChoiceItems(com.android.internal.R.array.quick_boot_mode,enableBootFast,new DialogInterface.OnMultiChoiceClickListener(){
-                    	public void onClick(DialogInterface dialog, int which, boolean isChecked) {
-							Log.d(TAG,"which = "+ which + "isChecked = " + isChecked);
-							if(which==0){
-								if(isChecked){
-									Settings.System.putIntForUser(context.getContentResolver(), Settings.System.BOOT_FAST_ENABLE, 1,UserHandle.USER_CURRENT);
-								}else{
-									Settings.System.putIntForUser(context.getContentResolver(), Settings.System.BOOT_FAST_ENABLE, 0,UserHandle.USER_CURRENT);
-								}
-							}
-                    	}
-                    	})
-                    	.setPositiveButton(com.android.internal.R.string.yes, new DialogInterface.OnClickListener() {
-                        public void onClick(DialogInterface dialog, int which) {
-							if(mPolicy!=null)
-								mPolicy.acquireBAView();
-                            beginShutdownSequence(context);
-                        }
-                    	})
-                    	.setNegativeButton(com.android.internal.R.string.no, null)
-                    	.create();
-				}else{
-					sConfirmDialog = new AlertDialog.Builder(context)
-                    .setTitle(mRebootSafeMode
-                            ? com.android.internal.R.string.reboot_safemode_title
-                            : com.android.internal.R.string.power_off)
-                    .setMessage(resourceId)
-                    .setPositiveButton(com.android.internal.R.string.yes, new DialogInterface.OnClickListener() {
-                        public void onClick(DialogInterface dialog, int which) {
-                            beginShutdownSequence(context);
-                        }
-                    })
-                    .setNegativeButton(com.android.internal.R.string.no, null)
-                    .create();
-				}
-			}
             closer.dialog = sConfirmDialog;
             sConfirmDialog.setOnDismissListener(closer);
             sConfirmDialog.getWindow().setType(WindowManager.LayoutParams.TYPE_KEYGUARD_DIALOG);
@@ -273,9 +184,6 @@ public final class ShutdownThread extends Thread {
         mReboot = true;
         mRebootSafeMode = false;
         mRebootReason = reason;
-		if(reason!=null){
-			Log.d(TAG,"reboot reason is " + mRebootReason);
-		}
         shutdownInner(context, confirm);
     }
 
@@ -301,40 +209,10 @@ public final class ShutdownThread extends Thread {
             }
             sIsStarted = true;
         }
-		SystemProperties.set("sys.start_shutdown", "1");
-		
-		if(SystemProperties.getBoolean("ro.sys.bootfast", false)&&(1==Settings.System.getIntForUser(context.getContentResolver(), Settings.System.BOOT_FAST_ENABLE, 0,UserHandle.USER_CURRENT))){
-            mBootFastEnable = true;
-        }else{
-            mBootFastEnable = false;
-        }
-		if(mReboot){
-			mBootFastEnable = false;
-			Log.d(TAG,"reboot!");
-		}
-		if(mRebootSafeMode){
-			mBootFastEnable = false;
-			Log.d(TAG,"Go Into Safe Mode real reboot");
-		}
-		if(Zygote.systemInSafeMode){
-			mBootFastEnable = false;
-			Log.d(TAG,"In Safe Mode real reboot");
-		}
-		if(mRebootReason!=null){
-			mBootFastEnable = false;
-			Log.d(TAG,"have reason " + mRebootReason + "real reboot");
-		}
-		if(SystemProperties.getInt("sys.battery_zero",0)==1){
-			mBootFastEnable = false;
-			Log.d(TAG,"Battery to low we really shutdown!");
-		}
-		if(SystemProperties.getInt("sys.temperature_high",0)==1){
-			mBootFastEnable = false;
-			Log.d(TAG,"temperature high we relly shutdown!");
-		}
+
         // throw up an indeterminate system dialog to indicate radio is
         // shutting down.
-        final ProgressDialog pd = new ProgressDialog(context);
+        ProgressDialog pd = new ProgressDialog(context);
         pd.setTitle(context.getText(com.android.internal.R.string.power_off));
         pd.setMessage(context.getText(com.android.internal.R.string.shutdown_progress));
         pd.setIndeterminate(true);
@@ -343,7 +221,6 @@ public final class ShutdownThread extends Thread {
 
         pd.show();
 
-		sInstance = new ShutdownThread();
         sInstance.mContext = context;
         sInstance.mPowerManager = (PowerManager)context.getSystemService(Context.POWER_SERVICE);
 
@@ -375,15 +252,6 @@ public final class ShutdownThread extends Thread {
 
         // start the thread that initiates shutdown
         sInstance.mHandler = new Handler() {
-        	@Override
-        	public void handleMessage(Message msg){
-        		switch(msg.what) {
-        			case  CLOSE_PROCESS_DIALOG:
-        					Log.v(TAG,"close process dialog now");
-        					pd.dismiss();
-        					break;
-        		}
-        	}
         };
         sInstance.start();
     }
@@ -406,7 +274,7 @@ public final class ShutdownThread extends Thread {
                 actionDone();
             }
         };
-        if(!mBootFastEnable){
+
         /*
          * Write a system property in case the system_server reboots before we
          * get to the actual hardware restart. If that happens, we'll retry at
@@ -425,8 +293,6 @@ public final class ShutdownThread extends Thread {
             SystemProperties.set(REBOOT_SAFEMODE_PROPERTY, "1");
         }
 
-		killRemoveActivity(mContext);
-    	killRemoveService(mContext);
         Log.i(TAG, "Sending shutdown broadcast...");
         
         // First send the high-level shut down broadcast.
@@ -463,9 +329,7 @@ public final class ShutdownThread extends Thread {
         }
 
         // Shutdown radios.
-        if(SystemProperties.get(PROPERTY_EMBEDED_TELEPHONY).equals("true")){
-        	shutdownRadios(MAX_RADIO_WAIT_TIME);
-        }	
+        shutdownRadios(MAX_RADIO_WAIT_TIME);
 
         // Shutdown MountService to ensure media is in a safe state
         IMountShutdownObserver observer = new IMountShutdownObserver.Stub() {
@@ -506,109 +370,6 @@ public final class ShutdownThread extends Thread {
         }
 
         rebootOrShutdown(mReboot, mRebootReason);
-        }
-		if (SHUTDOWN_VIBRATE_MS > 0) {
-            // vibrate before shutting down
-            Vibrator vibrator = new SystemVibrator();
-            try {
-                vibrator.vibrate(SHUTDOWN_VIBRATE_MS);
-            } catch (Exception e) {
-                // Failure to vibrate shouldn't interrupt shutdown.  Just log it.
-                Log.w(TAG, "Failed to vibrate during shutdown.", e);
-            }
-		}
-	
-		IWindowManager 	mWindowManager;
-		mWindowManager = IWindowManager.Stub.asInterface(ServiceManager.getService("window"));
-		if(mWindowManager != null){
-			try{
-                mWindowManager.freezeRotation(Surface.ROTATION_0);
-                mWindowManager.updateRotation(true, true);
-                mWindowManager.setEventDispatching(false);
-            }catch (RemoteException e) {
-            }
-		}
-		//shutdownRadios(MAX_RADIO_WAIT_TIME);
-		
-    	killRemoveActivity(mContext);
-    	killRemoveService(mContext);
-
-		MobileDirectController.getInstance().setNetworkEnable(false);
-		SystemClock.sleep(BOOTFAST_WAIT_TIME);
-		
-		sIsStarted = false;
-		try{
-			sInstance.mCpuWakeLock.release();
-			sInstance.mScreenWakeLock.release();
-		}catch(SecurityException e){
-			SystemProperties.set("sys.start_shutdown", "0");
-		}
-		sInstance.mHandler.sendEmptyMessage(CLOSE_PROCESS_DIALOG);
-		Log.v(TAG,"CLOSE_PROCESS_DIALOG");
-		SystemProperties.set("sys.start_shutdown", "0");
-		sInstance.mPowerManager.goToBootFastSleep(SystemClock.uptimeMillis());
-    }
-	private  void killRemoveActivity(Context context)
-    {
-    	ActivityManager am = (ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
-    	List<ActivityManager.RecentTaskInfo> recents = am.getRecentTasks(MAX_ACTIVITYS,ActivityManager.RECENT_WITH_EXCLUDED);
-       if(recents != null)
-         {
-         		Log.v(TAG,"Task Size is " + recents.size());
-         		for(int i=0;i<recents.size();i++)
-         		{
-         				ActivityManager.RecentTaskInfo task = recents.get(i);
-                		ActivityManager.TaskThumbnails thumbs = am.getTaskThumbnails(task.persistentId);
-                		if (task != null) 
-                		{
-                			if(task.persistentId > 0)
-                			{
-                				if(!task. baseIntent.getComponent().getPackageName().equals("com.android.launcher"))
-                				{
-                    					am.removeTask(task.persistentId, ActivityManager.REMOVE_TASK_KILL_PROCESS);
-                     				Log.v(TAG,"remove a task " + task.baseIntent.getComponent().getPackageName());
-                     				if(thumbs.numSubThumbbails > 0)
-                     					{
-                     					for(int j=0;j<thumbs.numSubThumbbails;j++)
-                     						{
-                    		 						am.removeSubTask(task.persistentId, j);
-                    		 						Log.v(TAG,"remove a sub task ");
-                     						}
-                    					}
-                				}
-                			}
-                		}
-             	}
-         }  
-    }
-
-	private void killRemoveService(Context context){
-		 ActivityManager am = (ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
-        List<ActivityManager.RunningServiceInfo> services = am.getRunningServices(MAX_SERVICES);
-        int NS = services != null ? services.size() : 0;
-        for (int i=0; i<NS; i++) {
-            ActivityManager.RunningServiceInfo si = services.get(i);
-            // We are not interested in services that have not been started
-            // and don't have a known client, because
-            // there is nothing the user can do about them.
-            if (!si.started && si.clientLabel == 0) {
-                services.remove(i);
-                i--;
-                NS--;
-                continue;
-            }
-            // We likewise don't care about services running in a
-            // persistent process like the system or phone.
-            if ((si.flags&ActivityManager.RunningServiceInfo.FLAG_PERSISTENT_PROCESS)
-                    != 0) {
-                services.remove(i);
-                i--;
-                NS--;
-                continue;
-            }
-            Log.v(TAG,"service = " + services.get(i).process);
-            context.stopService(new Intent().setComponent(services.get(i).service));
-        }
     }
 
     private void shutdownRadios(int timeout) {

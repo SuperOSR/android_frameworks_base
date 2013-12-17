@@ -535,37 +535,6 @@ public final class PowerManager {
         }
     }
 
-	public void goToBootFastSleep(long time){
-		try{
-			mService.goToBootFastSleep(time);
-		}catch(RemoteException e){
-		}
-	}
-
-	public void bootFastWake(long time){
-		try{
-			mService.bootFastWake(time);
-		}catch(RemoteException e){
-		}
-	}
-
-	public boolean isBootFastStatus(){
-		boolean retValue = false;
-		try{
-			retValue = mService.isBootFastStatus();
-		}catch(RemoteException e){
-		}
-		return retValue;
-	}
-
-	public boolean isBootFastWakeFromStandby(){
-		boolean retValue = false;
-		try{
-			retValue = mService.isBootFastWakeFromStandby();
-		}catch(RemoteException e){
-		}
-		return retValue;
-	}
     /**
      * Sets the brightness of the backlights (screen, keyboard, button).
      * <p>

@@ -25,13 +25,9 @@ import android.util.Log;
 import android.view.View;
 import android.view.ViewParent;
 import android.widget.TextView;
-import android.text.SpannableString;	// add by dk
-import android.text.Spanned;			// add by dk
-import android.text.style.AbsoluteSizeSpan;		// add by dk
 
 import com.android.systemui.R;
 
-import java.util.Calendar;		// add by dk
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -95,25 +91,8 @@ public class DateView extends TextView {
             final String dateFormat = getContext().getString(R.string.system_ui_date_pattern);
             final Locale l = Locale.getDefault();
             final String fmt = ICU.getBestDateTimePattern(dateFormat, l.toString());
-            /** add by dk **/
-			String strDate = new String(DateFormat.format(dateFormat, new Date()).toString());
-			String strAmOrPm = new String("");
-
-			String strTimeFormat = android.provider.Settings.System.getString(getContext().getContentResolver(), android.provider.Settings.System.TIME_12_24);
-
-			if(strTimeFormat.equals("12"))
-			{
-				strAmOrPm = new String(getAmOrPm());
-				strAmOrPm += "   ";		// keep spacing
-			}
-	
-			String strText = strAmOrPm + strDate;
-			SpannableString msp = new SpannableString(strText); 
-			int nfontSize = getContext().getResources().getDimensionPixelSize(R.dimen.am_pm_font_size);		// set xxdp in dimens.xml, this method just return xx as px
-			msp.setSpan(new AbsoluteSizeSpan(nfontSize), 0, strAmOrPm.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-	
-			setText(msp);
-		}
+            mDateFormat = new SimpleDateFormat(fmt, l);
+        }
 
         mCurrentTime.setTime(System.currentTimeMillis());
 
@@ -122,24 +101,5 @@ public class DateView extends TextView {
             setText(text);
             mLastText = text;
         }
-    }
-    
-    /** add by dk **/
-    private String getAmOrPm()
-    {
-		Calendar c = Calendar.getInstance();  
-
-		String amPmValues; 
-
-		if(c.get(Calendar.AM_PM) == 0)
-		{ 
-			amPmValues = getContext().getString(R.string.status_bar_time_am);
-		}
-		else
-		{ 
-			amPmValues = getContext().getString(R.string.status_bar_time_pm); 
-		}
-
-		return amPmValues;
     }
 }
