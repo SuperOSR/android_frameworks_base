@@ -228,6 +228,10 @@ ifeq ($(WITH_MALLOC_LEAK_CHECK),true)
 	LOCAL_CFLAGS += -DMALLOC_LEAK_CHECK
 endif
 
+ifeq ($(TARGET_BOARD_PLATFORM), fiber)
+    LOCAL_CFLAGS += -DTARGET_BOARD_FIBER
+endif
+
 LOCAL_MODULE:= libandroid_runtime
 
 include external/stlport/libstlport.mk

@@ -21,6 +21,9 @@
 #include "jni.h"
 #include "JNIHelp.h"
 #include "android_os_Parcel.h"
+#ifdef TARGET_BOARD_FIBER
+#include "android_util_Binder.h"
+#endif
 #include "android/graphics/GraphicsJNI.h"
 
 #include <android_runtime/AndroidRuntime.h>
@@ -32,6 +35,9 @@
 
 #include <gui/Surface.h>
 #include <gui/SurfaceControl.h>
+#ifdef TARGET_BOARD_FIBER
+#include <gui/SurfaceComposerClient.h>
+#endif
 #include <gui/GLConsumer.h>
 
 #include <ui/Rect.h>
@@ -348,6 +354,15 @@ static void nativeWriteToParcel(JNIEnv* env, jclass clazz,
     parcel->writeStrongBinder( self != 0 ? self->getIGraphicBufferProducer()->asBinder() : NULL);
 }
 
+#ifdef TARGET_BOARD_FIBER
+static jint nativeSetDisplayParameter(JNIEnv* env, jclass clazz,
+        jobject tokenObj, jint cmd, jint para0, jint para1, jint para2) {
+    sp<IBinder> token(ibinderForJavaObject(env, tokenObj));
+    if (token == NULL) return JNI_ERR;
+
+    return SurfaceComposerClient::setDisplayParameter(token, cmd, para0, para1, para2);
+}
+#endif
 // ----------------------------------------------------------------------------
 
 static JNINativeMethod gSurfaceMethods[] = {
@@ -369,6 +384,10 @@ static JNINativeMethod gSurfaceMethods[] = {
             (void*)nativeReadFromParcel },
     {"nativeWriteToParcel", "(ILandroid/os/Parcel;)V",
             (void*)nativeWriteToParcel },
+#ifdef TARGET_BOARD_FIBER
+    {"nativeSetDisplayParameter", "(Landroid/os/IBinder;IIII)I",
+            (void*)nativeSetDisplayParameter },
+#endif
 };
 
 int register_android_view_Surface(JNIEnv* env)
