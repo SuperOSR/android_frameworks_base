@@ -53,7 +53,9 @@ int main(int argc, char** argv)
 
         // create the boot animation object
         sp<BootAnimation> boot = new BootAnimation();
-
+#ifdef TARGET_BOARD_FIBER
+        boot->playBootMusic("/system/media/boot.wav");
+#endif
         IPCThreadState::self()->joinThreadPool();
 
     }
