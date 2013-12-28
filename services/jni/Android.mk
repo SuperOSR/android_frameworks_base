@@ -29,7 +29,7 @@ LOCAL_C_INCLUDES += \
     libcore/include \
     libcore/include/libsuspend \
 	$(call include-path-for, libhardware)/hardware \
-	$(call include-path-for, libhardware_legacy)/hardware_legacy \
+	$(call include-path-for, libhardware_legacy)/hardware_legacy
 
 LOCAL_SHARED_LIBRARIES := \
     libandroid_runtime \
