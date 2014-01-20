@@ -52,6 +52,12 @@ LOCAL_SHARED_LIBRARIES := \
     libEGL \
     libGLESv2
 
+ifeq ($(TARGET_BOARD_PLATFORM), fiber)
+    LOCAL_SRC_FILES += com_android_server_ActivityManagerService.cpp
+    LOCAL_CFLAGS += -DTARGET_BOARD_FIBER
+    LOCAL_SHARED_LIBRARIES += libcheckfile
+endif
+
 LOCAL_CFLAGS += -DEGL_EGLEXT_PROTOTYPES -DGL_GLEXT_PROTOTYPES
 
 ifeq ($(WITH_MALLOC_LEAK_CHECK),true)

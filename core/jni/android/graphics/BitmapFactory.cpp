@@ -215,8 +215,11 @@ static jobject doDecode(JNIEnv* env, SkStreamRewindable* stream, jobject padding
     int sampleSize = 1;
 
     SkImageDecoder::Mode mode = SkImageDecoder::kDecodePixels_Mode;
+#ifdef TARGET_BOARD_FIBER
+    SkBitmap::Config prefConfig = SkBitmap::kNo_Config;
+#else
     SkBitmap::Config prefConfig = SkBitmap::kARGB_8888_Config;
-
+#endif
     bool doDither = true;
     bool isMutable = false;
     float scale = 1.0f;
