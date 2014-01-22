@@ -35,9 +35,6 @@ int register_android_server_SystemServer(JNIEnv* env);
 int register_android_server_location_GpsLocationProvider(JNIEnv* env);
 int register_android_server_location_FlpHardwareProvider(JNIEnv* env);
 int register_android_server_connectivity_Vpn(JNIEnv* env);
-#ifdef TARGET_BOARD_FIBER
-int register_android_server_ActivityManagerService(JNIEnv* env);
-#endif
 int register_android_server_AssetAtlasService(JNIEnv* env);
 };
 
@@ -68,9 +65,6 @@ extern "C" jint JNI_OnLoad(JavaVM* vm, void* reserved)
     register_android_server_location_GpsLocationProvider(env);
     register_android_server_location_FlpHardwareProvider(env);
     register_android_server_connectivity_Vpn(env);
-#ifdef TARGET_BOARD_FIBER
-    register_android_server_ActivityManagerService(env);
-#endif
     register_android_server_AssetAtlasService(env);
     register_android_server_ConsumerIrService(env);
 
