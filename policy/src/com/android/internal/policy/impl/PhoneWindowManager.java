@@ -124,6 +124,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     static final boolean localLOGV = false;
     static final boolean DEBUG_LAYOUT = false;
     static final boolean DEBUG_INPUT = false;
+	static final boolean DEBUG_BOOTFAST = true;
     static final boolean DEBUG_STARTING_WINDOW = false;
     static final boolean SHOW_STARTING_ANIMATIONS = true;
     static final boolean SHOW_PROCESSES_ON_ALT_MENU = false;
@@ -247,6 +248,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     KeyguardServiceDelegate mKeyguardDelegate;
     GlobalActions mGlobalActions;
     volatile boolean mPowerKeyHandled; // accessed from input reader and handler thread
+    volatile boolean mPowerBootKeyHandled; 
     boolean mPendingPowerKeyUpCanceled;
     Handler mHandler;
     WindowState mLastInputMethodWindow = null;
@@ -283,6 +285,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     int mUserRotationMode = WindowManagerPolicy.USER_ROTATION_FREE;
     int mUserRotation = Surface.ROTATION_0;
     boolean mAccelerometerDefault;
+	boolean mBootFastEnable;
 
     int mAllowAllRotations = -1;
     boolean mCarDockEnablesAccelerometer;
@@ -304,6 +307,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     // The last window we were told about in focusChanged.
     WindowState mFocusedWindow;
     IApplicationToken mFocusedApp;
+    
+    BootAnimationView mBootAnimationView;
 
     private final class PointerLocationPointerEventListener implements PointerEventListener {
         @Override
@@ -453,6 +458,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private boolean mVolumeUpKeyTriggered;
     private boolean mPowerKeyTriggered;
     private long mPowerKeyTime;
+	private boolean mBootFastRuning;
 
     /* The number of steps between min and max brightness */
     private static final int BRIGHTNESS_STEPS = 10;
@@ -475,6 +481,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private static final int MSG_DISABLE_POINTER_LOCATION = 2;
     private static final int MSG_DISPATCH_MEDIA_KEY_WITH_WAKE_LOCK = 3;
     private static final int MSG_DISPATCH_MEDIA_KEY_REPEAT_WITH_WAKE_LOCK = 4;
+	private static final int MSG_SHOW_BATTERY_CHARGE = 5;
+	private static final int MSG_SHOW_BOOT_INIT = 6;
 
     private class PolicyHandler extends Handler {
         @Override
@@ -486,6 +494,14 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 case MSG_DISABLE_POINTER_LOCATION:
                     disablePointerLocation();
                     break;
+				case MSG_SHOW_BATTERY_CHARGE:
+					if(mBootAnimationView!=null)
+						mBootAnimationView.startShowBatteryCharge(msg.arg1);
+					break;
+				case MSG_SHOW_BOOT_INIT:
+					if(mBootAnimationView!=null)
+						mBootAnimationView.showBootInitLogo(0);
+					break;
                 case MSG_DISPATCH_MEDIA_KEY_WITH_WAKE_LOCK:
                     dispatchMediaKeyWithWakeLock((KeyEvent)msg.obj);
                     break;
@@ -535,6 +551,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             resolver.registerContentObserver(Settings.System.getUriFor(
                     Settings.Secure.IMMERSIVE_MODE_CONFIRMATIONS), false, this,
                     UserHandle.USER_ALL);
+			resolver.registerContentObserver(Settings.System.getUriFor(
+					Settings.System.BOOT_FAST_ENABLE), false, this, 
+					UserHandle.USER_ALL);
             updateSettings();
         }
 
@@ -668,6 +687,86 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
     }
 
+	private void showBootAnimation(){
+		if(DEBUG)
+			Log.d(TAG,"showBootAnimation");
+		  	SystemProperties.set("service.bootanim.exit", "0");    //ÔÝÊ±ÓÃÏµÍ³µÄ´úÌæÒ»ÏÂ£¬ÒÔºó×Ô¼ºÐ´
+			SystemProperties.set("ctl.start", "bootanim");
+	}
+
+	private void hideBootAnimation(){
+		if(DEBUG)
+			Log.d(TAG,"hideBootAnimation");
+			SystemProperties.set("service.bootanim.exit", "1");    
+			SystemProperties.set("ctl.stop", "bootanim");
+	}
+	
+	private Runnable mBootFastPowerLongPress = new Runnable() {
+		public void run() {
+			mBootFastRuning = true;
+			mPowerBootKeyHandled = true;
+            Log.v(TAG,"mBootFastPowerLongPress Runnable");
+			hideScreen(true);
+            mPowerManager.bootFastWake(SystemClock.uptimeMillis()); 
+            
+			
+			//showBootAnimation(3000);
+			hideScreen(false);
+			//releaseBootAnimationView();
+			mBootAnimationView.showBootInitLogo(0);
+
+			mHandler.postDelayed(new Runnable(){
+				@Override
+				public void run(){
+					mBootAnimationView.showInitLogo();
+				}},1200);
+			
+			mHandler.postDelayed(new Runnable(){
+				@Override
+				public void run(){
+					mBootAnimationView.hideScreen(true);
+					showBootAnimation();
+				}},1500);
+				
+			mHandler.postDelayed(new Runnable(){
+				@Override
+				public void run(){
+					releaseBootAnimationView();
+					hideBootAnimation();
+					if(mWindowManager != null){
+                 	try{
+                     	mWindowManager.thawRotation();
+						mWindowManager.setEventDispatching(true);
+                    }catch (RemoteException e) {
+                    }
+					mBootFastRuning =false;
+            	}
+				}},5000);
+			try {
+                ActivityManagerNative.getDefault().sendBootFastComplete();
+            } catch (RemoteException e) {
+            }	
+         }
+     };
+    private void interceptBootFastPowerKeyDown(boolean handled) {
+    	 if(DEBUG_BOOTFAST)
+    		 Log.v(TAG, "interceptBootFastPowerKeyDown");
+        mPowerBootKeyHandled = handled;
+        if (!handled) {
+            mHandler.postDelayed(mBootFastPowerLongPress, 1200);
+        }
+    }
+
+    private boolean interceptBootFastPowerKeyUp(boolean canceled) {
+    	 if(DEBUG_BOOTFAST)
+    		Log.v(TAG,"interceptBootFastPowerKeyUp");
+        if (!mPowerBootKeyHandled) {
+            mHandler.removeCallbacks(mBootFastPowerLongPress);
+            return !canceled;
+        }
+        return false;
+    }
+
     private boolean interceptPowerKeyUp(boolean canceled) {
         if (!mPowerKeyHandled) {
             mHandler.removeCallbacks(mPowerLongPress);
@@ -715,6 +814,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private final Runnable mPowerLongPress = new Runnable() {
         @Override
         public void run() {
+        	mBootFastRuning = true;
             // The context isn't read
             if (mLongPressOnPowerBehavior < 0) {
                 mLongPressOnPowerBehavior = mContext.getResources().getInteger(
@@ -744,6 +844,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 mWindowManagerFuncs.shutdown(resolvedBehavior == LONG_PRESS_POWER_SHUT_OFF);
                 break;
             }
+			if(DEBUG_BOOTFAST)
+				Slog.d(TAG,"shutdown finish out");
+			mBootFastRuning = false;
         }
     };
 
@@ -1167,6 +1270,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     Settings.System.SCREEN_OFF_TIMEOUT, 0, UserHandle.USER_CURRENT);
             String imId = Settings.Secure.getStringForUser(resolver,
                     Settings.Secure.DEFAULT_INPUT_METHOD, UserHandle.USER_CURRENT);
+			mBootFastEnable = Settings.System.getIntForUser(resolver,
+					Settings.System.BOOT_FAST_ENABLE, 0,UserHandle.USER_CURRENT)==1?true:false;
+			if(DEBUG_BOOTFAST)
+				Log.d(TAG,"update Settings mBootFastEnable = " + mBootFastEnable);
             boolean hasSoftInput = imId != null && imId.length() > 0;
             if (mHasSoftInput != hasSoftInput) {
                 mHasSoftInput = hasSoftInput;
@@ -1226,6 +1333,43 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
     }
 
+	private void acquireBootAnimationView() {
+        if (mBootAnimationView == null) {
+            mBootAnimationView = new BootAnimationView(mContext);
+            WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT);
+            lp.type = WindowManager.LayoutParams.TYPE_SECURE_SYSTEM_OVERLAY;
+            lp.flags = WindowManager.LayoutParams.FLAG_FULLSCREEN
+                    | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                    | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                    | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN;
+            if (ActivityManager.isHighEndGfx()) {
+                lp.flags |= WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED;
+                lp.privateFlags |=
+                        WindowManager.LayoutParams.PRIVATE_FLAG_FORCE_HARDWARE_ACCELERATED;
+            }
+            lp.format = PixelFormat.TRANSLUCENT;
+            lp.setTitle("BootAnimationView");
+            WindowManager wm = (WindowManager)
+                    mContext.getSystemService(Context.WINDOW_SERVICE);
+            lp.inputFeatures |= WindowManager.LayoutParams.INPUT_FEATURE_NO_INPUT_CHANNEL;
+            wm.addView(mBootAnimationView, lp);
+			if(DEBUG_BOOTFAST)
+				Log.d(TAG,"acquireBootAnimationView finish");
+        }
+    }
+
+	private void releaseBootAnimationView(){
+        if (mBootAnimationView != null) {
+            WindowManager wm = (WindowManager)
+                    mContext.getSystemService(Context.WINDOW_SERVICE);
+            wm.removeView(mBootAnimationView);
+            mBootAnimationView = null;
+        }
+		if(DEBUG_BOOTFAST)
+			Log.d(TAG,"releaseBootAnimationView finish");
+	}
     private int readRotation(int resID) {
         try {
             int rotation = mContext.getResources().getInteger(resID);
@@ -3790,6 +3934,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     /** {@inheritDoc} */
     @Override
     public int interceptKeyBeforeQueueing(KeyEvent event, int policyFlags, boolean isScreenOn) {
+
+		boolean shutdhownPending = SystemProperties.getInt("sys.start_shutdown",0)>0?true:false;
+		if(DEBUG_BOOTFAST)
+			Slog.d(TAG,"mBootFastRuning = " + mBootFastRuning + "shutdhownPending = " + shutdhownPending);
         if (!mSystemBooted) {
             // If we have not yet booted, don't let key events do anything.
             return 0;
@@ -3798,6 +3946,43 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
         final boolean canceled = event.isCanceled();
         final int keyCode = event.getKeyCode();
+
+		if(mBootFastEnable){
+			if(mBootFastRuning||shutdhownPending){
+				Slog.d(TAG,"shutdown is running or boot animation running");
+				return 0;
+			}
+			if(mPowerManager.isBootFastStatus()&&keyCode!=KeyEvent.KEYCODE_POWER){
+				Slog.d(TAG,"not power key return");
+				return 0;
+			}
+
+			if(keyCode == KeyEvent.KEYCODE_POWER&&mPowerManager.isBootFastStatus()){
+				if(!mPowerManager.isBootFastWakeFromStandby()){
+					if(down){
+						Slog.i(TAG,"boot fast key down");
+						interceptBootFastPowerKeyDown(isScreenOn);
+						return 0;
+					}else{
+						Slog.i(TAG,"boot fast key up");
+						interceptBootFastPowerKeyUp(isScreenOn);
+						return 0;
+					}
+				}else{
+					SystemClock.sleep(100); // wait for PowerManagerService check whether usb or ac connect
+					if(down&&!mPowerManager.isScreenOn()){
+							Slog.i(TAG,"wake from boot fast");
+							mHandler.removeCallbacks(mPowerLongPress);
+							mHandler.removeCallbacks(mBootFastPowerLongPress);
+							mHandler.post(mBootFastPowerLongPress);
+					}else{
+						if(DEBUG_BOOTFAST)
+							Slog.i(TAG,"not light screen");
+						return 0;
+					}
+				}
+			}
+		}
 
         final boolean isInjected = (policyFlags & WindowManagerPolicy.FLAG_INJECTED) != 0;
 
@@ -4069,6 +4254,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 break;
             }
         }
+		if(mBootFastRuning)
+			result &= ~ACTION_GO_TO_SLEEP;
         return result;
     }
 
@@ -4353,6 +4540,56 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     public boolean isScreenOnFully() {
         return mScreenOnFully;
     }
+
+	private void showBootAnimation(long time) {
+		if(DEBUG_BOOTFAST)
+			Log.d(TAG,"showBootAnimation time = " + time);
+		SystemClock.sleep(1000);
+		mBootAnimationView.showBootAnimation();
+		SystemClock.sleep(time);
+		mBootAnimationView.hideBootAnimation();
+	}
+
+	public void acquireBAView(){
+		if(DEBUG_BOOTFAST)
+			Slog.d(TAG,"acquireBAView");
+		mHandler.post(new Runnable(){
+			@Override
+			public void run(){
+				acquireBootAnimationView();
+			}
+		});
+	}
+
+	public void releaseBAView(){
+		if(DEBUG_BOOTFAST)
+			Slog.d(TAG,"releaseBAView");
+		mHandler.post(new Runnable(){
+			@Override
+			public void run(){
+				releaseBootAnimationView();
+			}
+		});
+	}
+	
+	public void hideScreen(boolean enable){
+		if(DEBUG_BOOTFAST)
+			Log.d(TAG,"hideScreen enable = " + enable);
+		if(mBootAnimationView!=null)
+			mBootAnimationView.hideScreen(enable);
+	}
+
+	public void showBootInitLogo(int logo){
+		if(DEBUG_BOOTFAST)
+			Log.d(TAG,"showBootInitLogo ");
+		mHandler.sendEmptyMessage(MSG_SHOW_BOOT_INIT);
+	}
+	
+	public void showPowerCharge(int precent){
+		if(DEBUG_BOOTFAST)
+			Log.d(TAG,"showPowerCharge");
+		mHandler.obtainMessage(MSG_SHOW_BATTERY_CHARGE,precent,0).sendToTarget();
+	}
 
     /** {@inheritDoc} */
     public void enableKeyguard(boolean enabled) {

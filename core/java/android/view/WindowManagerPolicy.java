@@ -979,6 +979,15 @@ public interface WindowManagerPolicy {
     @SuppressWarnings("javadoc")
     void exitKeyguardSecurely(OnKeyguardExitResult callback);
 
+	public void hideScreen(boolean enable);
+
+	public void showPowerCharge(int precent);
+
+	public void showBootInitLogo(int logo);
+
+	public void acquireBAView();
+
+	public void releaseBAView();
     /**
      * isKeyguardLocked
      *

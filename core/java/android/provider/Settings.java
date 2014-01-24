@@ -2415,6 +2415,13 @@ public final class Settings {
          */
         public static final String EGG_MODE = "egg_mode";
 
+		/**
+		 * enable the boot fast mode
+		 *
+		 *
+		 */
+		public static final String BOOT_FAST_ENABLE = "boot_fast_enable"; 
+
         /**
          * Settings to backup. This is here so that it's in the same place as the settings
          * keys and easy to update.
@@ -2480,7 +2487,8 @@ public final class Settings {
             POINTER_SPEED,
             VIBRATE_WHEN_RINGING,
             RINGTONE,
-            NOTIFICATION_SOUND
+            NOTIFICATION_SOUND,
+            BOOT_FAST_ENABLE
         };
 
         // Settings moved to Settings.Secure

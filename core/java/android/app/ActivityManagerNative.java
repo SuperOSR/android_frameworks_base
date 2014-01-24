@@ -4457,6 +4457,17 @@ class ActivityManagerProxy implements IActivityManager
         reply.recycle();
     }
 
+    public void sendBootFastComplete() throws RemoteException {
+        Parcel data = Parcel.obtain();
+        Parcel reply = Parcel.obtain();
+        data.writeInterfaceToken(IActivityManager.descriptor);
+        mRemote.transact(SEND_BOOT_FAST_COMPLETE_TRANSACTION, data, reply, 0);
+        reply.readException();
+        data.recycle();
+        reply.recycle();
+    }
+	
+
     public boolean targetTaskAffinityMatchesActivity(IBinder token, String destAffinity)
             throws RemoteException {
         Parcel data = Parcel.obtain();

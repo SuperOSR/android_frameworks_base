@@ -5193,7 +5193,58 @@ public final class ActivityManagerService extends ActivityManagerNative
             }
         }
     }
-    
+
+	public void sendBootFastComplete(){
+		Slog.d(TAG,"sendBootFastComplete");
+		enforceNotIsolatedCaller("sendBootFastComplete");
+        final long token = Binder.clearCallingIdentity();
+        try {
+			synchronized (this) {
+            // Ensure that any processes we had put on hold are now started
+            // up.
+            final int NP = mProcessesOnHold.size();
+            if (NP > 0) {
+                ArrayList<ProcessRecord> procs =
+                    new ArrayList<ProcessRecord>(mProcessesOnHold);
+                for (int ip=0; ip<NP; ip++) {
+                    if (DEBUG_PROCESSES) Slog.v(TAG, "Starting process on hold: "
+                            + procs.get(ip));
+                    startProcessLocked(procs.get(ip), "on-hold", null);
+                }
+            }
+            
+            if (mFactoryTest != SystemServer.FACTORY_TEST_LOW_LEVEL) {
+				Slog.d(TAG,"not mFactoryTest");
+                // Start looking for apps that are abusing wake locks.
+                Message nmsg = mHandler.obtainMessage(CHECK_EXCESSIVE_WAKE_LOCKS_MSG);
+                mHandler.sendMessageDelayed(nmsg, POWER_CHECK_DELAY);
+                // Tell anyone interested that we are done booting!
+                SystemProperties.set("sys.boot_completed", "1");
+                SystemProperties.set("dev.bootcomplete", "1");
+                for (int i=0; i<mStartedUsers.size(); i++) {
+					Slog.d(TAG,"sendBootFastComplete start user = " + i);
+                    UserStartedState uss = mStartedUsers.valueAt(i);
+                    //if (uss.mState == UserStartedState.STATE_BOOTING) {
+                        uss.mState = UserStartedState.STATE_RUNNING;
+                        final int userId = mStartedUsers.keyAt(i);
+                        Intent intent = new Intent(Intent.ACTION_BOOT_COMPLETED, null);
+                        intent.putExtra(Intent.EXTRA_USER_HANDLE, userId);
+                        broadcastIntentLocked(null, null, intent,
+                                null, null, 0, null, null,
+                                android.Manifest.permission.RECEIVE_BOOT_COMPLETED,
+								AppOpsManager.OP_NONE,
+                                false, false, MY_PID, Process.SYSTEM_UID, userId);
+						Slog.d(TAG,"real send boot complete");
+                    //}
+                }
+            }
+        }
+        } finally {
+            Binder.restoreCallingIdentity(token);
+        }
+        
+	}
+
     final void ensureBootCompleted() {
         boolean booting;
         boolean enableScreen;

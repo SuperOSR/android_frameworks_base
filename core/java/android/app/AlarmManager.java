@@ -99,6 +99,8 @@ public class AlarmManager
     /** @hide */
     public static final long WINDOW_HEURISTIC = -1;
 
+	public static final int RTC_SHUTDOWN_WAKEUP = 4;
+	
     private final IAlarmManager mService;
     private final boolean mAlwaysExact;
 

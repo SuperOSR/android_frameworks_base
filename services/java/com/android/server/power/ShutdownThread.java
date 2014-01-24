@@ -47,6 +47,7 @@ import com.android.internal.telephony.ITelephony;
 
 import android.util.Log;
 import android.view.WindowManager;
+import android.view.WindowManagerPolicy;
 
 public final class ShutdownThread extends Thread {
     // constants
@@ -66,6 +67,7 @@ public final class ShutdownThread extends Thread {
     
     private static boolean mReboot;
     private static boolean mRebootSafeMode;
+	private static WindowManagerPolicy mPolicy;
     private static String mRebootReason;
 
     // Provides shutdown assurance in case the system_server is killed
@@ -103,6 +105,13 @@ public final class ShutdownThread extends Thread {
         mRebootSafeMode = false;
         shutdownInner(context, confirm);
     }
+
+	public static void shutdown(final Context context, boolean confirm,WindowManagerPolicy policy){
+		mReboot = false;
+        mRebootSafeMode = false;
+		mPolicy = policy;
+        shutdownInner(context, confirm);
+	}
 
     static void shutdownInner(final Context context, boolean confirm) {
         // ensure that only one thread is trying to power down.

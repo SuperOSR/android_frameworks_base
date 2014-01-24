@@ -2696,6 +2696,9 @@ public class Intent implements Parcelable, Cloneable {
     @SdkConstant(SdkConstantType.ACTIVITY_INTENT_ACTION)
     public static final String ACTION_CREATE_DOCUMENT = "android.intent.action.CREATE_DOCUMENT";
 
+	public static final String ACTION_BOOT_FAST = 
+		    "android.intent.action.BOOT_FAST";
+
     // ---------------------------------------------------------------------
     // ---------------------------------------------------------------------
     // Standard intent categories (see addCategory()).
@@ -3330,6 +3333,10 @@ public class Intent implements Parcelable, Cloneable {
      */
     public static final String EXTRA_SHUTDOWN_USERSPACE_ONLY
             = "android.intent.extra.SHUTDOWN_USERSPACE_ONLY";
+
+
+	public static final String EXTRA_BOOT_FAST = 
+		    "android.intent.extra.boot_fast";
 
     // ---------------------------------------------------------------------
     // ---------------------------------------------------------------------
