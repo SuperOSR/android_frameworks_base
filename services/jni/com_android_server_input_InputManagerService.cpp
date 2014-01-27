@@ -34,6 +34,9 @@
 #include <utils/Log.h>
 #include <utils/Looper.h>
 #include <utils/threads.h>
+#ifdef TARGET_BOARD_FIBER
+#include <cutils/properties.h>
+#endif
 
 #include <input/InputManager.h>
 #include <input/PointerController.h>
@@ -252,6 +255,11 @@ private:
     // Power manager interactions.
     bool isScreenOn();
     bool isScreenBright();
+#ifdef TARGET_BOARD_FIBER
+    void tempWakeUp(nsecs_t eventTime);
+    bool isBootFastStatus();
+    bool isPowered();
+#endif
 
     static bool checkAndClearExceptionFromCallback(JNIEnv* env, const char* methodName);
 
@@ -811,6 +819,16 @@ void NativeInputManager::interceptKeyBeforeQueueing(const KeyEvent* keyEvent,
             }
         }
 
+#ifdef TARGET_BOARD_FIBER
+        if(isBootFastStatus()){
+            if(isPowered() == true){
+                if(isScreenOn == false){
+                    if(keyEvent->getKeyCode()==AKEYCODE_POWER)
+                    tempWakeUp(0);
+                }
+            }
+        }
+#endif
         handleInterceptActions(wmActions, when, /*byref*/ policyFlags);
     } else {
         policyFlags |= POLICY_FLAG_PASS_TO_USER;
@@ -947,6 +965,20 @@ bool NativeInputManager::dispatchUnhandledKey(const sp<InputWindowHandle>& input
     return result;
 }
 
+#ifdef TARGET_BOARD_FIBER
+bool NativeInputManager::isBootFastStatus(){
+    return android_server_PowerManagerService_isBootFastStatus();
+}
+
+bool NativeInputManager::isPowered(){
+    return android_server_PowerManagerService_isPowered();
+}
+
+void NativeInputManager::tempWakeUp(nsecs_t eventTime){
+    android_server_PowerManagerService_tempWakeuUp(eventTime);
+}
+#endif
+
 void NativeInputManager::pokeUserActivity(nsecs_t eventTime, int32_t eventType) {
     android_server_PowerManagerService_userActivity(eventTime, eventType);
 }
@@ -1006,6 +1038,26 @@ static void nativeSetDisplayViewport(JNIEnv* env, jclass clazz, jint ptr, jboole
         jint physicalLeft, jint physicalTop, jint physicalRight, jint physicalBottom,
         jint deviceWidth, jint deviceHeight) {
     NativeInputManager* im = reinterpret_cast<NativeInputManager*>(ptr);
+
+#ifdef TARGET_BOARD_FIBER
+    if(!external)
+    {
+        char property[PROPERTY_VALUE_MAX];
+        if (property_get("ro.sf.rotation", property, NULL) > 0) {
+            switch (atoi(property)) {
+                case 90:
+                    orientation = (orientation + 1) % 4;
+                    break;
+                case 180:
+                    orientation = (orientation + 2) % 4;
+                    break;
+                case 270:
+                    orientation = (orientation + 3) % 4;
+                    break;
+            }
+        }
+    }
+#endif
 
     DisplayViewport v;
     v.displayId = displayId;

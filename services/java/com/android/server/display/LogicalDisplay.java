@@ -243,6 +243,11 @@ final class LogicalDisplay {
      */
     public void configureDisplayInTransactionLocked(DisplayDevice device,
             boolean isBlanked) {
+        configureDisplayInTransactionLocked(device, isBlanked, false);
+    }
+
+    public void configureDisplayInTransactionLocked(DisplayDevice device,
+            boolean isBlanked, boolean isFullScreen) {
         final DisplayInfo displayInfo = getDisplayInfoLocked();
         final DisplayDeviceInfo displayDeviceInfo = device.getDisplayDeviceInfoLocked();
 
@@ -294,6 +299,14 @@ final class LogicalDisplay {
             displayRectWidth = displayInfo.logicalWidth * physHeight / displayInfo.logicalHeight;
             displayRectHeight = physHeight;
         }
+
+        /* add start --- 2013-07-15 by lianghuajun --- */
+        if (isFullScreen && displayInfo.logicalWidth > displayInfo.logicalHeight) {
+            displayRectWidth = physWidth;
+            displayRectHeight = physHeight;
+        }
+        /* add end */
+
         int displayRectTop = (physHeight - displayRectHeight) / 2;
         int displayRectLeft = (physWidth - displayRectWidth) / 2;
         mTempDisplayRect.set(displayRectLeft, displayRectTop,

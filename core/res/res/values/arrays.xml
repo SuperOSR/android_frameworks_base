@@ -346,4 +346,8 @@
         <item>中文 (繁體)</item>
     </string-array>
 
+	<array name="quick_boot_mode">
+        <item>@string/boot_fast_mode</item>
+    </array>
+	
 </resources>

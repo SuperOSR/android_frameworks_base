@@ -45,9 +45,19 @@ static struct {
     jmethodID wakeUpFromNative;
     jmethodID goToSleepFromNative;
     jmethodID userActivityFromNative;
+#ifdef TARGET_BOARD_FIBER
+    jmethodID tempWakeUpFromNative;
+#endif
 } gPowerManagerServiceClassInfo;
 
 // ----------------------------------------------------------------------------
+
+#ifdef TARGET_BOARD_FIBER
+static struct{
+    jfieldID isPowered;
+    jfieldID bootFastStatus;    
+}gPowerManagerServiceFieldInfo;
+#endif
 
 static jobject gPowerManagerServiceObj;
 static struct power_module* gPowerModule;
@@ -82,6 +92,36 @@ bool android_server_PowerManagerService_isScreenBright() {
     AutoMutex _l(gPowerManagerLock);
     return gScreenBright;
 }
+
+#ifdef TARGET_BOARD_FIBER
+bool android_server_PowerManagerService_isBootFastStatus(){
+    jboolean retval = JNI_FALSE;
+    if (gPowerManagerServiceObj) {
+        JNIEnv* env = AndroidRuntime::getJNIEnv();
+        retval = env->GetBooleanField(gPowerManagerServiceObj,gPowerManagerServiceFieldInfo.bootFastStatus);
+    }
+    return retval==JNI_FALSE?false:true;
+}
+
+bool android_server_PowerManagerService_isPowered(){
+    jboolean retval = JNI_FALSE;
+    if (gPowerManagerServiceObj) {
+        JNIEnv* env = AndroidRuntime::getJNIEnv();
+        retval = env->GetBooleanField(gPowerManagerServiceObj,gPowerManagerServiceFieldInfo.isPowered);
+    }
+    return retval==JNI_FALSE?false:true;
+}
+
+void android_server_PowerManagerService_tempWakeuUp(nsecs_t eventTime){
+     if (gPowerManagerServiceObj) {
+        JNIEnv* env = AndroidRuntime::getJNIEnv();
+        env->CallVoidMethod(gPowerManagerServiceObj,
+                gPowerManagerServiceClassInfo.tempWakeUpFromNative,
+                nanoseconds_to_milliseconds(eventTime));
+        checkAndClearExceptionFromCallback(env, "tempWakeUpFromNative");
+    }
+}
+#endif
 
 void android_server_PowerManagerService_userActivity(nsecs_t eventTime, int32_t eventType) {
     // Tell the power HAL when user activity occurs.
@@ -179,6 +219,14 @@ static void nativeSetInteractive(JNIEnv *env, jclass clazz, jboolean enable) {
     }
 }
 
+#ifdef TARGET_BOARD_FIBER
+static void nativeGoToBootFastSleep(JNIEnv *env, jobject clazz) {
+    ALOGD("nativeGoToBootFastSleep");
+    autosuspend_bootfast();
+    return;
+}
+#endif
+
 static void nativeSetAutoSuspend(JNIEnv *env, jclass clazz, jboolean enable) {
     if (enable) {
         ALOGD_IF_SLOW(100, "Excessive delay in autosuspend_enable() while turning screen off");
@@ -203,6 +251,10 @@ static JNINativeMethod gPowerManagerServiceMethods[] = {
             (void*) nativeReleaseSuspendBlocker },
     { "nativeSetInteractive", "(Z)V",
             (void*) nativeSetInteractive },
+#ifdef TARGET_BOARD_FIBER
+    { "nativeGoToBootFastSleep", "()V",
+            (void*) nativeGoToBootFastSleep },        
+#endif
     { "nativeSetAutoSuspend", "(Z)V",
             (void*) nativeSetAutoSuspend },
 };
@@ -238,6 +290,17 @@ int register_android_server_PowerManagerService(JNIEnv* env) {
     GET_METHOD_ID(gPowerManagerServiceClassInfo.userActivityFromNative, clazz,
             "userActivityFromNative", "(JII)V");
 
+#ifdef TARGET_BOARD_FIBER
+    GET_METHOD_ID(gPowerManagerServiceClassInfo.tempWakeUpFromNative,clazz,
+            "tempWakeUpFromNative","(J)V");
+
+    GET_FIELD_ID(gPowerManagerServiceFieldInfo.isPowered,clazz,
+            "mIsPowered","Z");
+
+    GET_FIELD_ID(gPowerManagerServiceFieldInfo.bootFastStatus,clazz,
+            "mBootFastStats","Z");
+#endif
+    
     // Initialize
     for (int i = 0; i <= USER_ACTIVITY_EVENT_LAST; i++) {
         gLastEventTime[i] = LLONG_MIN;

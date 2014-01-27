@@ -266,6 +266,20 @@ public final class Settings {
             "android.settings.WIFI_DISPLAY_SETTINGS";
 
     /**
+     * Activity Action: Show settings to allow configuration of Ethernet.
+     * <p>
+     * In some cases, a matching Activity may not exist, so ensure you
+     * safeguard against this.
+     * <p>
+     * Input: Nothing.
+     * <p>
+     * Output: Nothing.
+     */
+    @SdkConstant(SdkConstantType.ACTIVITY_INTENT_ACTION)
+    public static final String ACTION_ETHERNET_SETTINGS =
+            "android.settings.ETHERNET_SETTINGS";
+
+    /**
      * Activity Action: Show settings to allow configuration of date and time.
      * <p>
      * In some cases, a matching Activity may not exist, so ensure you
@@ -1905,6 +1919,12 @@ public final class Settings {
         public static final String VOLUME_VOICE = "volume_voice";
 
         /**
+         * FM volume. This is used internally, changing this value will
+         * not change the volume. See AudioManager.
+         */
+        public static final String VOLUME_FM = "volume_fm";
+
+        /**
          * Music/media/gaming volume. This is used internally, changing this
          * value will not change the volume. See AudioManager.
          */
@@ -1978,7 +1998,8 @@ public final class Settings {
          */
         public static final String[] VOLUME_SETTINGS = {
             VOLUME_VOICE, VOLUME_SYSTEM, VOLUME_RING, VOLUME_MUSIC,
-            VOLUME_ALARM, VOLUME_NOTIFICATION, VOLUME_BLUETOOTH_SCO
+            VOLUME_ALARM, VOLUME_NOTIFICATION, VOLUME_BLUETOOTH_SCO,
+	        "no volume","no volume",VOLUME_FM,VOLUME_FM 
         };
 
         /**
@@ -2415,13 +2436,47 @@ public final class Settings {
          */
         public static final String EGG_MODE = "egg_mode";
 
+        /**
+         * To use default or special accelerometer coordinate system
+         * @hide
+         */
+
+        public static final String ACCELEROMETER_COORDINATE = "accelerometer_coordinate";
+
+        /**
+         * the display mode options.
+         * add by huanglong
+         * @hide
+         */
+        public static final String DISPLAY_ADAPTION_MODE = "display_adaption_mode";
+
+        /**
+         * enable the screen adaption.
+         * add by huanglong
+         * @hide
+         */
+        public static final String DISPLAY_ADAPTION_ENABLE = "display_adapter_enable";
 		/**
 		 * enable the boot fast mode
 		 *
 		 *
 		 */
 		public static final String BOOT_FAST_ENABLE = "boot_fast_enable"; 
+		/**
+		 * enable max power mode
+		 *
+		 * 
+		 */
+		public static final String CPU_FAST_ENABLE = "cpu_fast_enable";
+		
+        public static final String BRIGHT_SYSTEM_MODE = "bright_system_mode";
 
+        public static final String BRIGHTNESS_LIGHT_MODE = "brightness_light_mode";
+
+        public static final String HDMI_OUTPUT_MODE = "hdmi_output_mode";
+
+        public static final String HDMI_FULL_SCREEN = "hdmi_full_screen";
+		
         /**
          * Settings to backup. This is here so that it's in the same place as the settings
          * keys and easy to update.
@@ -2488,7 +2543,12 @@ public final class Settings {
             VIBRATE_WHEN_RINGING,
             RINGTONE,
             NOTIFICATION_SOUND,
-            BOOT_FAST_ENABLE
+            BOOT_FAST_ENABLE,
+            CPU_FAST_ENABLE,
+            BRIGHT_SYSTEM_MODE,
+            BRIGHTNESS_LIGHT_MODE,
+            HDMI_OUTPUT_MODE,
+            HDMI_FULL_SCREEN
         };
 
         // Settings moved to Settings.Secure
@@ -2828,6 +2888,14 @@ public final class Settings {
             MOVED_TO_GLOBAL.add(Settings.Global.WIFI_SUSPEND_OPTIMIZATIONS_ENABLED);
             MOVED_TO_GLOBAL.add(Settings.Global.WIFI_WATCHDOG_ON);
             MOVED_TO_GLOBAL.add(Settings.Global.WIFI_WATCHDOG_POOR_NETWORK_TEST_ENABLED);
+            MOVED_TO_GLOBAL.add(Settings.Global.ETHERNET_ON);
+            MOVED_TO_GLOBAL.add(Settings.Global.ETHERNET_MODE);
+            MOVED_TO_GLOBAL.add(Settings.Global.ETHERNET_IP);
+            MOVED_TO_GLOBAL.add(Settings.Global.ETHERNET_MASK);
+            MOVED_TO_GLOBAL.add(Settings.Global.ETHERNET_DNS);
+            MOVED_TO_GLOBAL.add(Settings.Global.ETHERNET_ROUTE);
+            MOVED_TO_GLOBAL.add(Settings.Global.ETHERNET_CONF);
+            MOVED_TO_GLOBAL.add(Settings.Global.ETHERNET_IFNAME);
             MOVED_TO_GLOBAL.add(Settings.Global.WIMAX_NETWORKS_AVAILABLE_NOTIFICATION_ON);
             MOVED_TO_GLOBAL.add(Settings.Global.PACKAGE_VERIFIER_ENABLE);
             MOVED_TO_GLOBAL.add(Settings.Global.PACKAGE_VERIFIER_TIMEOUT);
@@ -5356,6 +5424,18 @@ public final class Settings {
         * @hide
         */
        public static final String WIFI_REENABLE_DELAY_MS = "wifi_reenable_delay";
+
+       /**
+        * Ethernet configuration
+        */
+       public static final String ETHERNET_ON      = "eth_on";
+       public static final String ETHERNET_MODE    = "eth_mode";
+       public static final String ETHERNET_IP      = "eth_ip";
+       public static final String ETHERNET_MASK    = "eth_netmask";
+       public static final String ETHERNET_DNS     = "eth_dns";
+       public static final String ETHERNET_ROUTE   = "eth_route";
+       public static final String ETHERNET_CONF    = "eth_conf";
+       public static final String ETHERNET_IFNAME  = "eth_ifname";
 
        /**
         * The number of milliseconds to delay when checking for data stalls during

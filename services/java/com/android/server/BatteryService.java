@@ -168,11 +168,11 @@ public final class BatteryService extends Binder {
         IBinder b = ServiceManager.getService("batterypropreg");
         mBatteryPropertiesRegistrar = IBatteryPropertiesRegistrar.Stub.asInterface(b);
 
-        try {
-            mBatteryPropertiesRegistrar.registerListener(mBatteryPropertiesListener);
-        } catch (RemoteException e) {
+//        try {
+  //          mBatteryPropertiesRegistrar.registerListener(mBatteryPropertiesListener);
+    //    } catch (RemoteException e) {
             // Should never happen.
-        }
+      //  }
     }
 
     void systemReady() {

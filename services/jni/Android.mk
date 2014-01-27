@@ -27,9 +27,9 @@ LOCAL_C_INCLUDES += \
     frameworks/native/services \
     external/skia/include/core \
     libcore/include \
-    libcore/include/libsuspend \
-	$(call include-path-for, libhardware)/hardware \
-	$(call include-path-for, libhardware_legacy)/hardware_legacy
+    system/core/libsuspend/include \
+    $(call include-path-for, libhardware)/hardware \
+    $(call include-path-for, libhardware_legacy)/hardware_legacy
 
 LOCAL_SHARED_LIBRARIES := \
     libandroid_runtime \
@@ -53,6 +53,11 @@ LOCAL_SHARED_LIBRARIES := \
     libGLESv2
 
 LOCAL_CFLAGS += -DEGL_EGLEXT_PROTOTYPES -DGL_GLEXT_PROTOTYPES
+
+ifeq ($(TARGET_BOARD_PLATFORM), fiber)
+    LOCAL_CFLAGS += -DTARGET_BOARD_FIBER
+    LOCAL_SRC_FILES += com_android_server_BatteryService.cpp
+endif
 
 ifeq ($(WITH_MALLOC_LEAK_CHECK),true)
     LOCAL_CFLAGS += -DMALLOC_LEAK_CHECK

@@ -34,6 +34,9 @@ public class Build {
     /** The name of the overall product. */
     public static final String PRODUCT = getString("ro.product.name");
 
+	/** The name of the firmware realse */
+	public static final String FIRMWARE = getString("ro.product.firmware");
+	
     /** The name of the industrial design. */
     public static final String DEVICE = getString("ro.product.device");
 

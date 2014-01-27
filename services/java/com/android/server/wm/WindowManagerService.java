@@ -20,7 +20,7 @@ import static android.view.WindowManager.LayoutParams.*;
 
 import static com.android.server.am.ActivityStackSupervisor.HOME_STACK_ID;
 
-import static android.view.WindowManagerPolicy.FINISH_LAYOUT_REDO_WALLPAPER;
+import static android.view.WindowManagerPolicy.*;
 
 import android.app.AppOpsManager;
 import android.util.TimeUtils;
@@ -72,6 +72,7 @@ import android.hardware.display.DisplayManager;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.Debug;
+import android.os.DynamicPManager;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.IRemoteCallback;
@@ -543,6 +544,8 @@ public class WindowManagerService extends IWindowManager.Stub
     final InputManagerService mInputManager;
     final DisplayManagerService mDisplayManagerService;
     final DisplayManager mDisplayManager;
+    
+    private DynamicPManager mDPM = new DynamicPManager();
 
     // Who is holding the screen on.
     Session mHoldingScreenOn;
@@ -732,6 +735,10 @@ public class WindowManagerService extends IWindowManager.Stub
         mOnlyCore = onlyCore;
         mLimitedAlphaCompositing = context.getResources().getBoolean(
                 com.android.internal.R.bool.config_sf_limitedAlpha);
+        mWindowAnimationScale = Float.parseFloat(context.getResources().getString(
+               com.android.internal.R.string.config_default_windowAnimationScale));
+        mTransitionAnimationScale = Float.parseFloat(context.getResources().getString(
+               com.android.internal.R.string.config_default_transitionAnimationScale));
         mInputManager = inputManager; // Must be before createDisplayContentLocked.
         mDisplayManagerService = displayManager;
         mHeadless = displayManager.isHeadless();
@@ -2549,6 +2556,98 @@ public class WindowManagerService extends IWindowManager.Stub
             if (win.mAppToken != null) {
                 win.mAppToken.updateReportedVisibilityLocked();
             }
+        }
+
+        mInputMonitor.updateInputWindowsLw(true /*force*/);
+    }
+
+	public void bringToFrontWindow(Session session, IWindow client) 
+	{
+        synchronized(mWindowMap) 
+		{
+            WindowState win = windowForClientLocked(session, client, false);
+            if (win == null) {
+                return;
+            }
+            bringToFrontWindowLocked(session, win);
+        }
+    }
+	
+    public void bringToFrontWindowLocked(Session session, WindowState win) 
+	{
+        final long origId = Binder.clearCallingIdentity();
+
+        bringToFrontWindowInnerLocked(session, win);
+
+        updateFocusedWindowLocked(UPDATE_FOCUS_NORMAL, true /*updateInputWindows*/);
+        Binder.restoreCallingIdentity(origId);
+    }
+
+    private void bringToFrontWindowInnerLocked(Session session, WindowState win) {
+        if (win.mRemoved) 
+		{
+            // Nothing to do.
+            return;
+        }
+		WindowList windows = win.getWindowList();
+        windows.remove(win);
+        mWindowsChanged = true;
+         Slog.d(TAG, "Final bringToFront of window: " + win);
+
+        final WindowToken token = win.mToken;
+        final AppWindowToken atoken = win.mAppToken;
+         Slog.d(TAG, "bringToFronting " + win + " from " + token);
+        token.windows.remove(win);
+        if (atoken != null) 
+		{
+            atoken.allAppWindows.remove(win);
+        }
+        Slog.d(
+                TAG, "**** bringToFronting window " + win + ": count="
+                + token.windows.size());
+
+		addWindowToListInOrderLocked(win, true);
+        if (win.mAttrs.type == TYPE_WALLPAPER) 
+		{
+            mLastWallpaperTimeoutTime = 0;
+            adjustWallpaperWindowsLocked();
+        } 
+		else if ((win.mAttrs.flags&FLAG_SHOW_WALLPAPER) != 0) 
+		{
+            adjustWallpaperWindowsLocked();
+        }
+
+		for (int i=win.mChildWindows.size()-1; i>=0; i--) 
+		{
+            WindowState cwin = win.mChildWindows.get(i);
+            Slog.w(TAG, "Force-bringToFronting child win " + cwin + " from container "+ win);
+            bringToFrontWindowInnerLocked(cwin.mSession, cwin);
+        }
+
+        mInputMonitor.setUpdateInputWindowsNeededLw();
+
+        boolean focusChanged = false;
+        if (win.canReceiveKeys()) 
+		{
+            focusChanged = updateFocusedWindowLocked(UPDATE_FOCUS_WILL_ASSIGN_LAYERS,false /*updateInputWindows*/);
+        }
+
+        assignLayersLocked(windows);
+        // Don't do layout here, the window must call
+        // relayout to be displayed, so we'll do it there.
+
+        //dump();
+
+        if (focusChanged) 
+		{
+            finishUpdateFocusedWindowAfterAssignLayersLocked(false /*updateInputWindows*/);
+        }
+        
+        win.mLayoutNeeded = true;
+        performLayoutAndPlaceSurfacesLocked();
+        if (win.mAppToken != null)
+		{
+        	win.mAppToken.updateReportedVisibilityLocked();
         }
 
         mInputMonitor.updateInputWindowsLw(true /*force*/);
@@ -5174,7 +5273,7 @@ public class WindowManagerService extends IWindowManager.Stub
     // Called by window manager policy.  Not exposed externally.
     @Override
     public void shutdown(boolean confirm) {
-        ShutdownThread.shutdown(mContext, confirm);
+        ShutdownThread.shutdown(mContext, confirm, mPolicy);
     }
 
     // Called by window manager policy.  Not exposed externally.
@@ -5856,6 +5955,7 @@ public class WindowManagerService extends IWindowManager.Stub
         }
 
         if (changed || alwaysSendConfiguration) {
+        	mDPM.notifyUsrPulse();
             sendNewConfiguration();
         }
 

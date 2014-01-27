@@ -273,6 +273,12 @@ LOCAL_SRC_FILES += \
 	packages/services/Proxy/com/android/net/IProxyCallback.aidl \
 	packages/services/Proxy/com/android/net/IProxyPortListener.aidl \
 
+ifeq ($(TARGET_BOARD_PLATFORM), fiber)
+	LOCAL_SRC_FILES += \
+		core/java/android/os/IDynamicPManager.aidl
+	LOCAL_CFLAGS += -DTARGET_BOARD_FIBER
+endif
+
 # FRAMEWORKS_BASE_JAVA_SRC_DIRS comes from build/core/pathmap.mk
 LOCAL_AIDL_INCLUDES += $(FRAMEWORKS_BASE_JAVA_SRC_DIRS)
 

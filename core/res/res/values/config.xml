@@ -1216,6 +1216,13 @@
     <!-- Flag indicating if the speed up audio on mt call code should be executed -->
     <bool name="config_speed_up_audio_on_mt_calls">false</bool>
 
+    <!-- default windowAnimationScale value: 0x, 0.5x, 1.0x, 1.5x, 2.0x, 5.0x, 10.0x
+         actual_windowAnimationScale = config_default_windowAnimationScale -->
+    <string name="config_default_windowAnimationScale">1.0</string>
+    <!-- default transitionAnimationScale value: 0x, 0.5x, 1.0x, 1.5x, 2.0x, 5.0x, 10.0x
+         actual_transitionAnimationScale = config_default_transitionAnimationScale -->
+    <string name="config_default_transitionAnimationScale">1.0</string>
+
     <!-- Class name of the framework account picker activity.
          Can be customized for other product types -->
     <string name="config_chooseAccountActivity"
