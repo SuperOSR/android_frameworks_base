@@ -41,6 +41,7 @@ import android.util.SparseArray;
 import android.view.Display;
 import android.view.DisplayInfo;
 import android.view.Surface;
+import android.view.SurfaceControl;
 
 import com.android.server.UiThread;
 
@@ -54,7 +55,7 @@ import android.content.ContentResolver;
 import android.database.ContentObserver;
 import android.provider.Settings;
 import android.provider.Settings.SettingNotFoundException;
-import android.view.Surface;
+
 /**
  * Manages attached displays.
  * <p>
@@ -1451,12 +1452,12 @@ public final class DisplayManagerService extends IDisplayManager.Stub {
     public int setDisplayParameter(int displaytype, int cmd, int para0, int para1, int para2) {
         IBinder displayToken = null;
         if( Display.TYPE_BUILT_IN == displaytype) {
-            displayToken = Surface.getBuiltInDisplay(Surface.BUILT_IN_DISPLAY_ID_MAIN);
+            displayToken = SurfaceControl.getBuiltInDisplay(SurfaceControl.BUILT_IN_DISPLAY_ID_MAIN);
         } else if( Display.TYPE_HDMI == displaytype) {
-            displayToken = Surface.getBuiltInDisplay(Surface.BUILT_IN_DISPLAY_ID_HDMI);
+            displayToken = SurfaceControl.getBuiltInDisplay(SurfaceControl.BUILT_IN_DISPLAY_ID_HDMI);
         }
         if (displayToken != null) {
-            return Surface.setDisplayParameter(displayToken, cmd, para0, para1, para2);
+            return SurfaceControl.setDisplayParameter(displayToken, cmd, para0, para1, para2);
         } else {
             return -1;
         }

@@ -21,7 +21,6 @@ import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
-import android.os.IBinder;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.util.Log;
@@ -46,9 +45,6 @@ public class Surface implements Parcelable {
     private static native boolean nativeIsConsumerRunningBehind(int nativeObject);
     private static native int nativeReadFromParcel(int nativeObject, Parcel source);
     private static native void nativeWriteToParcel(int nativeObject, Parcel dest);
-    
-    private static native int nativeSetDisplayParameter(
-            IBinder displayToken, int cmd, int para0, int para1, int para2);
 
     public static final Parcelable.Creator<Surface> CREATOR =
             new Parcelable.Creator<Surface>() {
@@ -103,25 +99,6 @@ public class Surface implements Parcelable {
      * Rotation constant: 270 degree rotation.
      */
     public static final int ROTATION_270 = 3;
-
-    /* built-in physical display ids (keep in sync with ISurfaceComposer.h)
-     * these are different from the logical display ids used elsewhere in the framework */
-
-    /**
-     * Built-in physical display id: Main display.
-     * Use only with {@link #getBuiltInDisplay()}.
-     * @hide
-     */
-    public static final int BUILT_IN_DISPLAY_ID_MAIN = 0;
-
-    /**
-     * Built-in physical display id: Attached HDMI display.
-     * Use only with {@link #getBuiltInDisplay()}.
-     * @hide
-     */
-    public static final int BUILT_IN_DISPLAY_ID_HDMI = 1;
-
-    private static native IBinder nativeGetBuiltInDisplay(int physicalDisplayId);    
 
     /**
      * Create an empty surface, which will later be filled in by readFromParcel().
@@ -314,11 +291,6 @@ public class Surface implements Parcelable {
             mCompatibleMatrix = new Matrix();
             mCompatibleMatrix.setScale(appScale, appScale);
         }
-    }
-
-    /** @hide */
-    public static IBinder getBuiltInDisplay(int builtInDisplayId) {
-        return nativeGetBuiltInDisplay(builtInDisplayId);
     }
 
     /**
@@ -519,13 +491,5 @@ public class Surface implements Parcelable {
             }
             mOrigMatrix.set(m);
         }
-    }
-
-    /** @hide */
-    public static int setDisplayParameter(IBinder displayToken, int cmd, int para0, int para1, int para2) {
-        if (displayToken == null) {
-            throw new IllegalArgumentException("displayToken must not be null");
-        }
-        return nativeSetDisplayParameter(displayToken, cmd, para0, para1, para2);
     }
 }
